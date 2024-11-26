@@ -121,7 +121,7 @@ class LSTM_KerasModel(BaseModel):
 class XGBoostModel(BaseModel):
     def __init__(self, name="XGBoost_Model"):
         super().__init__(name)
-        self.model = xgb.XGBRegressor(objective='reg:squarederror', n_estimators=100, learning_rate=0.1)
+        self.model = xgb.XGBRegressor(objective='reg:squarederror', n_estimators=128, learning_rate=0.1)
 
     def train(self, X_train, y_train, X_val, y_val):
         eval_set = [(X_train, y_train), (X_val, y_val)]
@@ -192,7 +192,8 @@ def train(dataset_path, output_path, train_cutoff, val_cutoff, model_type, id_un
     training_features = {
         'all_features': all_features,
         'inmet_and_cases': inmet_and_cases,
-        'sat_and_cases': sat_and_cases
+        'sat_and_cases': sat_and_cases,
+        'cases' : features_cases
     }
 
     target = 'CASES'
@@ -268,12 +269,12 @@ def main():
     train(args.dataset_path, args.output_path, args.train_cutoff, args.val_cutoff, args.model_type, args.id_unidade)
 
 if __name__ == '__main__':
-    main()
-    #train(
-    #    dataset_path="data/processed/sinan/sinan.parquet",
-    #    output_path="data/processed/lstm",
-    #    train_cutoff="2021-12-31",
-    #    val_cutoff="2022-12-31",
-    #    model_type="XGBoost",
-    #    id_unidade=None
-    #)
+    #main()
+    train(
+        dataset_path="data/processed/sinan/sinan.parquet",
+        output_path="data/processed/lstm",
+        train_cutoff="2021-12-31",
+        val_cutoff="2022-12-31",
+        model_type="XGBoost",
+        id_unidade=None
+    )
