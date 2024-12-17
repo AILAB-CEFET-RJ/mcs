@@ -1,68 +1,60 @@
-import calendar
-import logging
-import datetime
 import os
-import argparse
 import cdsapi
 
-def generate_days(month, year):
-    num_days = calendar.monthrange(year, month)[1]
-    days_as_strings = list(range(1, num_days + 1))
-    return days_as_strings
+def download_era5_land_daily_batch(variable, statistics, years, extent, output_dir):
+    """
+    Downloads ERA5-Land daily data for a given variable and statistics as yearly batches.
+    
+    Args:
+        variable (str): The variable to download (e.g., "skin_temperature").
+        statistics (list): List of daily statistics to download (e.g., ["daily_mean", "daily_minimum", "daily_maximum"]).
+        years (list): List of years to download (e.g., [2019, 2020, 2021, 2022, 2023]).
+        extent (list): Geographic extent in the format [north, west, south, east].
+        output_dir (str): Directory where the downloaded files will be saved.
+    """
+    # Ensure the output directory exists
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
-def download_era5_land_daily(variable, date, daily_statistic, destination):
-    try:
-        if len(date) != 6 or not date[:4].isdigit() or not (1 <= int(date[4:]) <= 12):
-            raise ValueError("Invalid date format. Use 'yyyymm'.")
+    # Initialize the CDS API client
+    client = cdsapi.Client()
 
-        year = date[:4]
-        month = date[4:6]
-        days = generate_days(int(month), int(year))
+    # Loop over years and statistics
+    for year in years:
+        for statistic in statistics:
+            output_file = os.path.join(output_dir, f"{variable}_{statistic}_{year}.nc")
 
-        directory = os.path.dirname(destination)
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-            logging.info(f"Created directory: {directory}")
+            # Skip if the file already exists
+            if os.path.exists(output_file):
+                print(f"File already exists, skipping: {output_file}")
+                continue
 
+            # Define the request parameters
+            request = {
+                "variable": variable,
+                "year": str(year),
+                "month": [f"{m:02d}" for m in range(1, 13)],  # All months
+                "day": [f"{d:02d}" for d in range(1, 32)],   # All days
+                "time_zone": "utc-03:00",
+                "daily_statistic": statistic,
+                "format": "netcdf",
+                "area": extent,  # [north, west, south, east]
+            }
 
-        dataset = "derived-era5-land-daily-statistics"
-        request = {
-            "variable": [variable],
-            "year": year,
-            "month": month,
-            "day": days,
-            "daily_statistic": "daily_mean",
-            "time_zone": "utc-03:00",
-            "frequency": "1_hourly"
-        }
-
-
-        client = cdsapi.Client()
-        client.retrieve(dataset, request).download(destination)
-        logging.info(f"File downloaded successfully at: {destination}")
-
-    except Exception as e:
-        logging.error(f"An error occurred: {e}")
-        raise
-
-def main():
-    parser = argparse.ArgumentParser(description="Download ERA 5 data from Copernicus")
-    parser.add_argument("--variable", default="2m_temperature", help="Variable from ERA5 dataset")
-    parser.add_argument("--date", help="Date in yyyymm format", default=None, required=False)
-    parser.add_argument("--daily_statistic", choices=["daily_mean", "daily_minimum", "daily_maximum"], required=True)
-    parser.add_argument("--path", help="Destination path", default="data/raw/era5_land_daily", required=False)
-    parser.add_argument("--log", dest="log_level", choices=["INFO", "DEBUG", "ERROR"], default="INFO", help="Set the logging level")
-
-    args = parser.parse_args()
-
-    logging.basicConfig(level=getattr(logging, args.log_level), 
-                        format="%(asctime)s - %(levelname)s - %(module)s - %(lineno)d - %(message)s")
-
-    if args.date is None:
-        args.date = datetime.date.today().strftime("%Y%m")
-
-    download_era5_land_daily(args.variable, args.date, args.daily_statistic, args.path)
+            try:
+                print(f"Requesting data for {year}, {statistic}: {output_file}")
+                client.retrieve("derived-era5-land-daily-statistics", request).download(output_file)
+                print(f"Downloaded: {output_file}")
+            except Exception as e:
+                print(f"Failed to download {output_file}: {e}")
 
 if __name__ == "__main__":
-    main()
-    #download_era5_land_daily("skin_temperature", "202402", "daily_mean", "data/raw/era5_land_daily")
+    # Define parameters
+    variable = "skin_temperature"
+    statistics = ["daily_mean", "daily_minimum", "daily_maximum"]
+    years = [2019, 2020, 2021, 2022, 2023]
+    extent = [-20.7634, -44.7930, -23.3702, -40.7635]  # [north, west, south, east]
+    output_dir = "data/era5_land_daily"
+
+    # Call the function
+    download_era5_land_daily_batch(variable, statistics, years, extent, output_dir)

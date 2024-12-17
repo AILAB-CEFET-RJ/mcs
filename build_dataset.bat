@@ -69,4 +69,4 @@
 ::python src/calculate_accumulated_rrqpe.py 20191130 20231231 data/raw/rrqpe data/processed/rrqpe
 
 :: Build
-::python src/build_dataset.py data/processed/sinan/DENG.parquet data/processed/cnes/STRJ2401.parquet data/raw/lst/ref.nc data/raw/rrqpe/ref.nc data/processed/inmet/aggregated.parquet data/processed/sinan/sinan.parquet
+::python src/build_dataset.py data/processed/sinan/DENG.parquet data/processed/cnes/STRJ2401.parquet data/processed/sinan/sinan.parquet

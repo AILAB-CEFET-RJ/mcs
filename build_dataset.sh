@@ -67,5 +67,5 @@
 #python src/calculate_accumulated_rrqpe.py 20191130 20231231 data/raw/rrqpe data/processed/rrqpe
 
 # Build
-#python src/build_dataset.py data/processed/sinan/DENG.parquet data/processed/cnes/STRJ2401.parquet data/processed/inmet/aggregated.parquet data/processed/lst/lst.parquet data/processed/rrqpe/rrqpe.parquet data/processed/sinan/sinan.parquet --start_date 2020-01-01 --end_date 2023-12-31
+#python src/build_dataset.py data/processed/sinan/DENG.parquet data/processed/cnes/STRJ2401.parquet data/processed/sinan/sinan.parquet --start_date 2020-01-01 --end_date 2023-12-31
 

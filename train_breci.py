@@ -170,18 +170,29 @@ def train(dataset_path, output_path, train_cutoff, val_cutoff, model_type, id_un
 
     # Define features and target
     features_cases = ['CASES', 'CASES_MM_14', 'CASES_MM_21', 'CASES_ACC_14', 'CASES_ACC_21']
-    windows = [7, 14, 21]
-    features_era5 = ['TEM_MIN_ERA5', 'TEM_AVG_ERA5', 'TEM_MAX_ERA5',
-                     'IDEAL_TEMP_ERA5', 'EXTREME_TEMP_ERA5', 'TEMP_RANGE_ERA5'] + [
-                     f'TEM_AVG_ERA5_MM_{window}' for window in windows ] + [
-                     f'TEMP_RANGE_ERA5_MM_{window}' for window in windows ] + [
-                     f'TEM_AVG_ERA5_ACC_{window}' for window in windows ]
+    features_inmet = ['IDEAL_TEMP_INMET', 'EXTREME_TEMP_INMET', 'SIGNIFICANT_RAIN_INMET', 'EXTREME_RAIN_INMET', 'TEMP_RANGE_INMET',
+                      'TEM_AVG_INMET_MM_7', 'TEM_AVG_INMET_MM_14', 'TEM_AVG_INMET_MM_21',
+                      'CHUVA_INMET_MM_7', 'CHUVA_INMET_MM_14', 'CHUVA_INMET_MM_21',
+                      'TEMP_RANGE_INMET_MM_7', 'TEMP_RANGE_INMET_MM_14', 'TEMP_RANGE_INMET_MM_21',
+                      'TEM_AVG_INMET_ACC_7', 'TEM_AVG_INMET_ACC_14', 'TEM_AVG_INMET_ACC_21',
+                      'CHUVA_INMET_ACC_7', 'CHUVA_INMET_ACC_14', 'CHUVA_INMET_ACC_21']
 
-    all_features = features_cases + features_era5
+    features_sat = ['IDEAL_TEMP_SAT', 'EXTREME_TEMP_SAT', 'SIGNIFICANT_RAIN_SAT', 'EXTREME_RAIN_SAT', 'TEMP_RANGE_SAT',
+                    'TEM_AVG_SAT_MM_7', 'TEM_AVG_SAT_MM_14', 'TEM_AVG_SAT_MM_21',
+                    'CHUVA_SAT_MM_7', 'CHUVA_SAT_MM_14', 'CHUVA_SAT_MM_21',
+                    'TEMP_RANGE_SAT_MM_7', 'TEMP_RANGE_SAT_MM_14', 'TEMP_RANGE_SAT_MM_21',
+                    'TEM_AVG_SAT_ACC_7', 'TEM_AVG_SAT_ACC_14', 'TEM_AVG_SAT_ACC_21',
+                    'CHUVA_SAT_ACC_7', 'CHUVA_SAT_ACC_14', 'CHUVA_SAT_ACC_21']
+
+    all_features = features_cases + features_inmet + features_sat
+    inmet_and_cases = features_cases + features_inmet
+    sat_and_cases = features_cases + features_sat
 
     # Define a collection of feature sets
     training_features = {
         'all_features': all_features,
+        'inmet_and_cases': inmet_and_cases,
+        'sat_and_cases': sat_and_cases,
         'cases' : features_cases
     }
 
@@ -264,6 +275,6 @@ if __name__ == '__main__':
         output_path="data/processed/lstm",
         train_cutoff="2021-12-31",
         val_cutoff="2022-12-31",
-        model_type="LSTM_KERAS",
+        model_type="XGBoost",
         id_unidade=None
     )
