@@ -29,7 +29,7 @@ class BaseModel:
     def reshape_data(self, X_train_scaled, X_val_scaled):
         return X_train_scaled, X_val_scaled
 
-    def train_and_save(self, data, config):
+    def train_and_save(self, X_train, y_train, X_val, y_val, output_path, unit_id, feature_set_name):
         raise NotImplementedError("train_and_save must be implemented in subclasses")
 
 
@@ -65,10 +65,7 @@ class LSTM_PyTorchModel(BaseModel):
         torch.save(self.model.state_dict(), model_path)
         logging.info(f"Model saved to {model_path}")
 
-    def train_and_save(self, data, config):
-        X_train, y_train, X_val, y_val = data["X_train"], data["y_train"], data["X_val"], data["y_val"]
-        output_path, unit_id, feature_set_name = config["output_path"], config["unit_id"], config["feature_set_name"]
-
+    def train_and_save(self, X_train, y_train, X_val, y_val, output_path, unit_id, feature_set_name):
         X_train, X_val = self.prepare_data(X_train, X_val)
 
         train_loader = DataLoader(TimeSeriesDataset(X_train, y_train), batch_size=self.batch_size, shuffle=True)
@@ -132,10 +129,7 @@ class XGBoostModel(BaseModel):
         self.model.save_model(model_path)
         logging.info(f"Model saved to {model_path}")
 
-    def train_and_save(self, data, config):
-        X_train, y_train, X_val, y_val = data["X_train"], data["y_train"], data["X_val"], data["y_val"]
-        output_path, unit_id, feature_set_name = config["output_path"], config["unit_id"], config["feature_set_name"]
-
+    def train_and_save(self, X_train, y_train, X_val, y_val, output_path, unit_id, feature_set_name):
         X_train, X_val = self.prepare_data(X_train, X_val)
 
         eval_set = [(X_train, y_train), (X_val, y_val)]
@@ -145,54 +139,25 @@ class XGBoostModel(BaseModel):
         self.save_model(output_path, unit_id, feature_set_name)
 
 
-def generate_window_features(base_features, windows):
-    """
-    Generate dynamic features based on sliding windows.
-    """
-    window_features = []
-    for base_feature in base_features:
-        for window in windows:
-            window_features.append(f"{base_feature}_MM_{window}")
-            window_features.append(f"{base_feature}_ACC_{window}")
-    return window_features
-
-
+# Training Function
 def train(dataset_path, output_path, train_cutoff, val_cutoff, model_type, id_unidade=None):
     df = pd.read_parquet(dataset_path)
     if id_unidade:
         df = df[df["ID_UNIDADE"] == id_unidade]
 
-    # Base features
-    features_cases = ['CASES']
-    features_inmet_base = [
-        'TEM_AVG_INMET', 'TEMP_RANGE_INMET', 'CHUVA_INMET'
-    ]
-    features_sat_base = [
-        'TEM_AVG_SAT', 'TEMP_RANGE_SAT', 'CHUVA_SAT'
-    ]
-    features_era5_base = [
-        'TEM_MIN_ERA5', 'TEM_AVG_ERA5', 'TEM_MAX_ERA5',
-        'TEMP_RANGE_ERA5'
-    ]
+    # Define feature groups
+    features_cases = ['CASES', 'CASES_MM_14', 'CASES_MM_21', 'CASES_ACC_14', 'CASES_ACC_21']
+    features_inmet = ['TEMP_MIN', 'TEMP_MAX', 'TEMP_MEAN', 'HUMIDITY', 'RAIN']
+    features_sat = ['TEMP_AVG_SAT', 'RAIN_SAT']
 
-    # Sliding window logic
-    windows = [7, 14, 21]
-    features_inmet = features_inmet_base + generate_window_features(features_inmet_base, windows)
-    features_sat = features_sat_base + generate_window_features(features_sat_base, windows)
-    features_era5 = features_era5_base + generate_window_features(features_era5_base, windows)
-
-    # Feature group combinations
-    all_features = features_cases + features_inmet + features_sat + features_era5
+    all_features = features_cases + features_inmet + features_sat
     inmet_and_cases = features_cases + features_inmet
     sat_and_cases = features_cases + features_sat
-    era5_and_cases = features_cases + features_era5
 
-    # Feature sets for training
     training_features = {
         "all_features": all_features,
         "inmet_and_cases": inmet_and_cases,
         "sat_and_cases": sat_and_cases,
-        "era5_and_cases": era5_and_cases,
         "cases": features_cases,
     }
 
@@ -214,34 +179,18 @@ def train(dataset_path, output_path, train_cutoff, val_cutoff, model_type, id_un
         val_df = group[(group["DT_NOTIFIC"] > train_cutoff) & (group["DT_NOTIFIC"] <= val_cutoff)]
 
         for feature_set_name, feature_set in training_features.items():
-            # Check for missing features
-            missing_features = [f for f in feature_set if f not in df.columns]
-            if missing_features:
-                logging.warning(f"Skipping feature set {feature_set_name} for {name}: Missing features {missing_features}")
-                continue
-
-            data = {
-                "X_train": train_df[feature_set].values,
-                "y_train": train_df[target].values,
-                "X_val": val_df[feature_set].values,
-                "y_val": val_df[target].values,
-            }
-
-            config = {
-                "output_path": output_path,
-                "unit_id": name,
-                "feature_set_name": feature_set_name,
-            }
+            X_train, y_train = train_df[feature_set].values, train_df[target].values
+            X_val, y_val = val_df[feature_set].values, val_df[target].values
 
             model = ModelClass(input_size=len(feature_set)) if model_type == "LSTM_PYTORCH" else ModelClass()
-            model.train_and_save(data, config)
+            model.train_and_save(X_train, y_train, X_val, y_val, output_path, name, feature_set_name)
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     train(
-        dataset_path="data/processed/sinan/sinan.parquet",
-        output_path="data/processed/LSTM_PYTORCH",
+        dataset_path="data/sinan/sinan.parquet",
+        output_path="data/output",
         train_cutoff="2021-12-31",
         val_cutoff="2022-12-31",
         model_type="LSTM_PYTORCH",
