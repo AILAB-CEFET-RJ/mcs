@@ -197,12 +197,12 @@ def main():
     )
 
 if __name__ == "__main__":
-    #main()
-     build_dataset(
-         sinan_path="data/processed/sinan/DENG.parquet",
-         cnes_path="data/processed/cnes/STRJ2401.parquet",
-         era5_path="data/raw/era5/RJ_1997_2024.nc",
-         output_path="data/processed/sinan/sinan.parquet",
-         start_date="2020-01-01",
-         end_date="2023-12-31"
-    )
+    main()
+    #build_dataset(
+    #     sinan_path="data/processed/sinan/DENG.parquet",
+    #     cnes_path="data/processed/cnes/STRJ2401.parquet",
+    #     era5_path="data/raw/era5/RJ_1997_2024.nc",
+    #     output_path="data/processed/sinan/sinan.parquet",
+    #     start_date="2020-01-01",
+    #     end_date="2023-12-31"
+    #)
