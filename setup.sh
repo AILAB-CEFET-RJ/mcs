@@ -1,13 +1,15 @@
 #!/bin/bash
 
-#Create env
-conda env create -f arboseer.yml
+# conda environment
+conda env create -f config/environment.yml
 
-#Create data folder
 mkdir -p ./data
+mkdir -p ./data/ws
+mkdir -p ./data/as
+mkdir -p ./data/NWP
+mkdir -p ./data/NWP/ERA5
+mkdir -p ./data/datasets
+mkdir -p ./data/goes16
 
-# Activate env
-conda activate arboseer
-
-# Download and process CNES Health Units data
-./build_dataset.sh
+# docker image
+#TODO docker build -t atmoseer .
