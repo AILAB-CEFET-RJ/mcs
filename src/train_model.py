@@ -60,6 +60,34 @@ def compute_weights_for_ordinal_classification(y):
 
     return weights
 
+def compute_weights_for_regression(temp_lagged, precip_lagged):
+    """
+    Computes weights for a regression task based on temperature and precipitation.
+
+    Parameters:
+        temp_lagged (numpy array): Array of lagged temperature values (e.g., 7-day rolling average).
+        precip_lagged (numpy array): Array of lagged precipitation values (e.g., 7-day rolling sum).
+
+    Returns:
+        numpy array: Array of computed weights.
+    """
+    weights = np.ones_like(temp_lagged, dtype=float)  # Default weight of 1
+
+    # Define weight tiers based on 7-day temperature and precipitation trends
+    mask_low = (temp_lagged < 18) | (precip_lagged < 5)  # Unfavorable for mosquitoes
+    weights[mask_low] = 1  # Minimal impact
+
+    mask_moderate = ((temp_lagged >= 18) & (temp_lagged < 25)) & ((precip_lagged >= 5) & (precip_lagged < 30))
+    weights[mask_moderate] = 5  # Moderate impact
+
+    mask_high = ((temp_lagged >= 25) & (temp_lagged < 30)) & ((precip_lagged >= 30) & (precip_lagged < 100))
+    weights[mask_high] = 20  # High impact
+
+    mask_extreme = ((temp_lagged >= 30) & (temp_lagged < 35)) & (precip_lagged >= 100)
+    weights[mask_extreme] = 50  # Extreme impact
+
+    return weights
+
 
 def weighted_mse_loss(input, target, weight):
     return (weight * (input - target) ** 2).sum()
@@ -94,7 +122,8 @@ def train(forecaster, X_train, y_train, X_val, y_val, forecasting_task_sufix, pi
     print(f"Number of features: {NUM_FEATURES}")
 
     # model.apply(initialize_weights)
-
+    train_weights = None
+    val_weights = None
     if forecasting_task_sufix == "oc":
         print("- Forecasting task: ordinal classification.")
         train_weights = compute_weights_for_ordinal_classification(y_train)
@@ -119,10 +148,11 @@ def train(forecaster, X_train, y_train, X_val, y_val, forecasting_task_sufix, pi
         y_val = rp.value_to_binary_level(y_val)
     elif forecasting_task_sufix == "reg":
         print("- Forecasting task: regression.")
+        train_weights = compute_weights_for_regression(X_train[:, :, 9], X_train[:, :, 12])
+        val_weights = compute_weights_for_regression(X_val[:, :, 9], X_val[:, :, 12])
+        train_weights = torch.FloatTensor(train_weights)
+        val_weights = torch.FloatTensor(val_weights)        
         loss = nn.MSELoss()
-        global y_mean_value
-        y_mean_value = np.mean(y_train)
-        print(y_mean_value)
 
     print(forecaster)
 
@@ -174,7 +204,7 @@ def train(forecaster, X_train, y_train, X_val, y_val, forecasting_task_sufix, pi
 
 def main(argv):
     parser = argparse.ArgumentParser(description="Train a rainfall forecasting model.")
-    parser.add_argument("-t", "--task", choices=["ORDINAL_CLASSIFICATION", "BINARY_CLASSIFICATION"],
+    parser.add_argument("-t", "--task", choices=["ORDINAL_CLASSIFICATION", "BINARY_CLASSIFICATION", "REGRESSION"],
                         default="REGRESSION", help="Prediction task")
     parser.add_argument("-l", "--learner", choices=["Conv1DNeuralNet", "LstmNeuralNet"],
                         default="LstmNeuralNet", help="Learning algorithm to be used.")
@@ -184,17 +214,17 @@ def main(argv):
 
     forecasting_task_id = None
 
-    forecasting_task_id = None
-
     if args.task == "ORDINAL_CLASSIFICATION":
         forecasting_task_id = rp.ForecastingTask.ORDINAL_CLASSIFICATION
     elif args.task == "BINARY_CLASSIFICATION":
         forecasting_task_id = rp.ForecastingTask.BINARY_CLASSIFICATION
+    elif args.task == "REGRESSION":
+        forecasting_task_id = rp.ForecastingTask.REGRESSION
 
     seed_everything()
 
     X_train, y_train, X_val, y_val, X_test, y_test = pipeline.load_datasets(
-        args.pipeline_id)
+        args.pipeline_id, True)
 
     with open('./config/config.yaml', 'r') as file:
         config = yaml.safe_load(file)
@@ -207,6 +237,7 @@ def main(argv):
         prediction_task_sufix = "bc"
         args.pipeline_id += "_" + prediction_task_sufix
     elif forecasting_task_id == rp.ForecastingTask.REGRESSION:
+        prediction_task_sufix = "reg"
         args.pipeline_id += "_reg"
 
     BATCH_SIZE = config["training"][prediction_task_sufix]["BATCH_SIZE"]
@@ -239,7 +270,8 @@ def main(argv):
     elif prediction_task_sufix == "bc":
         forecaster = BinaryClassifier(learner)
     elif prediction_task_sufix == "reg":
-        forecaster = Regressor(in_channels=NUM_FEATURES, y_mean_value=y_mean_value)
+        y_mean_value = np.mean(y_train)
+        forecaster = Regressor(learner, in_channels=NUM_FEATURES, y_mean_value=y_mean_value)
 
     # Build model
     start_time = time.time()
@@ -247,6 +279,8 @@ def main(argv):
     logging.info("Model training took %s seconds." % (time.time() - start_time))
 
     # Evaluate using the best model produced
+    #train_weights = compute_weights_for_regression(X_test[:, :, 9], X_test[:, :, 12])
+    #train_weights = torch.FloatTensor(train_weights)    
     test_loader = learner.create_dataloader(X_test, y_test, batch_size=BATCH_SIZE)
     forecaster.print_evaluation_report(args.pipeline_id, test_loader, forecasting_task_id)
 

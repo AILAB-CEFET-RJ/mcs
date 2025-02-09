@@ -1,13 +1,16 @@
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset
 import torch.nn.functional as F
+import yaml
 from train.training_utils import *
 from train.evaluate import *
 
 class Regressor(nn.Module):
-    def __init__(self, in_channels, y_mean_value):
+    def __init__(self, learner, in_channels, y_mean_value):
         super(Regressor, self).__init__()
+        self.learner = learner
 
         self.conv1d_1 = nn.Conv1d(
             in_channels=in_channels, out_channels=32, kernel_size=3, padding=2)
@@ -114,32 +117,62 @@ class Regressor(nn.Module):
         epoch_acc = torch.stack(batch_accs).mean()      # Combine accuracies
         return {'val_loss': epoch_loss.item(), 'val_acc': epoch_acc.item()}
 
-    def evaluate(self, X_test, y_test):
-        self.eval()
+    def evaluate(self, test_loader):
+        """Evaluates the model using a DataLoader and returns predictions."""
+        self.eval()  
+        self.learner.eval()
 
-        test_x_tensor = torch.from_numpy(X_test.astype('float64'))
-        test_x_tensor = torch.permute(test_x_tensor, (0, 2, 1))
-        test_y_tensor = torch.from_numpy(y_test.astype('float64'))
+        y_true_list, y_pred_list = [], []
 
-        test_ds = TensorDataset(test_x_tensor, test_y_tensor)
-        test_loader = torch.utils.data.DataLoader(
-            test_ds, batch_size=32, shuffle=False)
-        test_loader = DeviceDataLoader(test_loader, get_default_device())
-
-        test_losses = []
-        outputs = []
         with torch.no_grad():
             for xb, yb in test_loader:
-                output = self(xb.float())
-                outputs.append(output)
+                xb, yb = xb.float(), yb.float()
 
-        y_pred = torch.vstack(outputs).squeeze(1)
-        y_pred = y_pred.cpu().numpy().reshape(-1, 1)
-        test_error = skl.mean_squared_error(y_test, y_pred)
-        print('MSE on the entire test set: %f' % test_error)
-        test_error2 = skl.mean_absolute_error(y_test, y_pred)
-        print('MAE on the entire test set: %f' % test_error2)
-        test_error3 = mean_bias_error(y_test, y_pred)
-        print('MBE on the entire test set: %f' % test_error3)
+                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                xb, yb = xb.to(device), yb.to(device)
 
-        export_results_to_latex(y_test, y_pred)
+                # Debugging: Print shape before passing to model
+                print(f"Before model: xb.shape = {xb.shape}")  # Should be (batch_size, seq_len, features)
+
+                # If using LSTM, do NOT permute!
+                output = self.learner(xb)  # Forward pass
+
+                # Store results
+                y_pred_list.append(output.cpu().numpy())  
+                y_true_list.append(yb.cpu().numpy())  
+
+        return np.vstack(y_true_list).reshape(-1, 1), np.vstack(y_pred_list).reshape(-1, 1)
+
+
+
+    def print_evaluation_report(self, pipeline_id, test_loader, forecasting_task):
+            print("\\begin{verbatim}")
+            print(f"***Evaluation report for pipeline {pipeline_id}***")
+            print("\\end{verbatim}")
+
+            print("\\begin{verbatim}")
+            print("***Hyperparameters***")
+            with open('./config/config.yaml', 'r') as file:
+                config = yaml.safe_load(file)
+            model_config = config['training']['oc']
+            pretty_model_config = yaml.dump(model_config, indent=4)
+            print(pretty_model_config)
+            print("\\end{verbatim}")
+
+            print("\\begin{verbatim}")
+            print("***Model architecture***")
+            print(self.learner)
+            print("\\end{verbatim}")
+
+            print("\\begin{verbatim}")
+            print('***Confusion matrix***')
+            print("\\end{verbatim}")
+            y_true, y_pred = self.evaluate(test_loader)
+            assert(y_true.shape == y_pred.shape)
+            export_results_to_latex(y_true, y_pred, forecasting_task)
+
+            print("\\begin{verbatim}")
+            print('***Classification report***')
+            print(mean_squared_error(y_true, y_pred))
+            print(mean_absolute_error(y_true, y_pred))
+            print("\\end{verbatim}")        

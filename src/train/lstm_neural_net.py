@@ -65,6 +65,6 @@ class LstmNeuralNet(BaseNeuralNet):
             print(weights.shape)        
             ds = TensorDataset(X, y, weights)
 
-        loader = torch.utils.data.DataLoader(ds, batch_size=batch_size, shuffle=True)
+        loader = torch.utils.data.DataLoader(ds, batch_size=batch_size, shuffle=False, drop_last=True)
 
         return loader

@@ -34,12 +34,14 @@ def export_confusion_matrix_to_latex(y_true, y_pred, prediction_task):
     print(df.style.to_latex(hrules=True))
 
 
-def export_results_to_latex(y_true, y_pred):
+def export_results_to_latex(y_true, y_pred, forecasting_task):
     '''
       MAE (mean absolute error) and MBE (mean bias error) values are computed for each precipitation level.
     '''
 
-    export_confusion_matrix_to_latex(y_true, y_pred)
+    #TODO : Create custom result report
+    if (forecasting_task != rp.ForecastingTask.REGRESSION):
+        export_confusion_matrix_to_latex(y_true, y_pred, forecasting_task)
 
     print(y_true.shape)
     print(y_true)
