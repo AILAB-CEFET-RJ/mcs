@@ -78,13 +78,13 @@ def compute_weights_for_regression(temp_lagged, precip_lagged):
     weights[mask_low] = 1  # Minimal impact
 
     mask_moderate = ((temp_lagged >= 18) & (temp_lagged < 25)) & ((precip_lagged >= 5) & (precip_lagged < 30))
-    weights[mask_moderate] = 5  # Moderate impact
+    weights[mask_moderate] = 2  # Moderate impact
 
     mask_high = ((temp_lagged >= 25) & (temp_lagged < 30)) & ((precip_lagged >= 30) & (precip_lagged < 100))
-    weights[mask_high] = 20  # High impact
+    weights[mask_high] = 3  # High impact
 
     mask_extreme = ((temp_lagged >= 30) & (temp_lagged < 35)) & (precip_lagged >= 100)
-    weights[mask_extreme] = 50  # Extreme impact
+    weights[mask_extreme] = 4  # Extreme impact
 
     return weights
 
@@ -160,9 +160,9 @@ def train(forecaster, X_train, y_train, X_val, y_val, forecasting_task_sufix, pi
     LEARNING_RATE = config["training"][forecasting_task_sufix]["LEARNING_RATE"]
     N_EPOCHS = config["training"][forecasting_task_sufix]["N_EPOCHS"]
     PATIENCE = config["training"][forecasting_task_sufix]["PATIENCE"]
-    WEIGHT_DECAY = config["training"][forecasting_task_sufix]["WEIGHT_DECAY"]
+    WEIGHT_DECAY = float(config["training"][forecasting_task_sufix]["WEIGHT_DECAY"])  # Ensure float
 
-    optimizer = torch.optim.Adam(
+    optimizer = torch.optim.AdamW(
         forecaster.learner.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
     print(f" - Setting up optimizer: {optimizer}")
     # optimizer = torch.optim.SGD(model.parameters(), lr=1e-5, momentum=0.9)

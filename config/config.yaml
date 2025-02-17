@@ -1,7 +1,7 @@
 target: CASES
 preproc:
   SLIDING_WINDOW_SIZE : 7
-  TRAIN_SPLIT : '2012-12-31'
+  TRAIN_SPLIT : '2021-12-31'
   VAL_SPLIT : '2022-12-31'
 training:
   bc:
@@ -21,10 +21,10 @@ training:
     PATIENCE : 1000
     WEIGHT_DECAY : 0
   reg:
-    BATCH_SIZE : 30
+    BATCH_SIZE : 7
     DROPOUT_RATE : 0.5
     LEARNING_RATE : 0.0003
     N_EPOCHS : 1000
     OUTPUT_SIZE : 1
-    PATIENCE : 500
+    PATIENCE : 50
     WEIGHT_DECAY : 0
