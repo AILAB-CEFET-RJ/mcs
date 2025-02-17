@@ -3,7 +3,7 @@
 #python src/utils/dbc_to_parquet.py data/raw/cnes/STRJ2401.dbc data/raw/cnes/STRJ2401.parquet
 #python src/process_cnes_dataset.py data/raw/cnes/STRJ2401.parquet data/processed/cnes/STRJ2401.parquet
 
-# we won't be using 2019, it's just being downloaded to have a more complete 2020
+# we won't be using 2003, it's just being downloaded to have a more complete 2004
 
 # Download and process SINAN dengue cases - OK
 #python src/utils/download_sinan_file.py DENG 2019 data/raw/sinan
@@ -11,8 +11,8 @@
 #python src/utils/download_sinan_file.py DENG 2021 data/raw/sinan
 #python src/utils/download_sinan_file.py DENG 2022 data/raw/sinan
 #python src/utils/download_sinan_file.py DENG 2023 data/raw/sinan
-#python src/unify_sinan.py data/raw/sinan data/processed/sinan
-#python src/extract_sinan_cases.py data/processed/sinan/concat.parquet data/processed/sinan/DENG.parquet --cod_uf 33 --filled --start_date 2019-01-01 --end_date 2023-12-31
+python legacy/src/unify_sinan.py legacy/data/raw/sinan legacy/data/processed/sinan
+python legacy/src/extract_sinan_cases.py legacy/data/processed/sinan/concat.parquet data/processed/sinan/DENG.parquet --filled --cod_uf 33 --start_date 2002-01-01 --end_date 2024-12-31
 
 # Download inmet data - OK
 #python src/utils/download_inmet_data.py -s A617 -b 2019 -e 2023 -o data/raw/inmet --api_token $INMET_API_TOKEN

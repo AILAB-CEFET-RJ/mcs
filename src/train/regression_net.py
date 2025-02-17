@@ -107,8 +107,8 @@ class Regressor(nn.Module):
         X_train, y_train = batch
         out = self(X_train)                    # Generate predictions
         loss = F.cross_entropy(out, y_train)   # Calculate loss
-        acc = accuracy(out, y_train)           # Calculate accuracy
-        return {'val_loss': loss, 'val_acc': acc}
+        #acc = accuracy(out, y_train)           # Calculate accuracy
+        return {'val_loss': loss}
 
     def validation_epoch_end(self, outputs):
         batch_losses = [x['val_loss'] for x in outputs]
@@ -132,7 +132,7 @@ class Regressor(nn.Module):
                 xb, yb = xb.to(device), yb.to(device)
 
                 # Debugging: Print shape before passing to model
-                print(f"Before model: xb.shape = {xb.shape}")  # Should be (batch_size, seq_len, features)
+                #print(f"Before model: xb.shape = {xb.shape}")  # Should be (batch_size, seq_len, features)
 
                 # If using LSTM, do NOT permute!
                 output = self.learner(xb)  # Forward pass
@@ -145,34 +145,26 @@ class Regressor(nn.Module):
 
 
 
-    def print_evaluation_report(self, pipeline_id, test_loader, forecasting_task):
-            print("\\begin{verbatim}")
-            print(f"***Evaluation report for pipeline {pipeline_id}***")
-            print("\\end{verbatim}")
-
-            print("\\begin{verbatim}")
-            print("***Hyperparameters***")
-            with open('./config/config.yaml', 'r') as file:
-                config = yaml.safe_load(file)
-            model_config = config['training']['oc']
-            pretty_model_config = yaml.dump(model_config, indent=4)
-            print(pretty_model_config)
-            print("\\end{verbatim}")
-
-            print("\\begin{verbatim}")
-            print("***Model architecture***")
-            print(self.learner)
-            print("\\end{verbatim}")
-
-            print("\\begin{verbatim}")
-            print('***Confusion matrix***')
-            print("\\end{verbatim}")
+    def save_evaluation_report(self, pipeline_id, test_loader):
+        filename = globals.MODELS_DIR+pipeline_id+".txt"
+        with open(filename, "w") as file:
+            file.write(f"***Evaluation report for pipeline {pipeline_id}***\n\n")
+            
+            file.write("***Hyperparameters***\n")
+            with open('./config/config.yaml', 'r') as config_file:
+                config = yaml.safe_load(config_file)
+            file.write(yaml.dump(config['training']['oc'], indent=4) + "\n")
+            
+            file.write("***Model architecture***\n")
+            file.write(str(self.learner) + "\n\n")
+            
             y_true, y_pred = self.evaluate(test_loader)
-            assert(y_true.shape == y_pred.shape)
-            export_results_to_latex(y_true, y_pred, forecasting_task)
-
-            print("\\begin{verbatim}")
-            print('***Classification report***')
-            print(mean_squared_error(y_true, y_pred))
-            print(mean_absolute_error(y_true, y_pred))
-            print("\\end{verbatim}")        
+            assert y_true.shape == y_pred.shape
+            
+            metrics = {
+                'MSE': mean_squared_error(y_true, y_pred),
+                'MAE': mean_absolute_error(y_true, y_pred),
+            }
+            df = pd.DataFrame.from_dict(metrics, orient='index', columns=['Value'])
+            file.write(df.to_string())
+        print(f"Evaluation report saved to {filename}")     

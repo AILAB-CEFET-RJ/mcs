@@ -8,36 +8,36 @@ set ERA5_PATH=data\raw\era5\RJ_1997_2024.nc
 set CONFIG_PATH=config\config.yaml
 
 :: Run the Python script for each pipeline
-python src\build_dataset_v2.py FULL %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\FULL.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 7427549 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\7427549.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 2268922 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2268922.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 7149328 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\7149328.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 2299216 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2299216.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 0106453 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\0106453.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 6870066 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\6870066.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 6042619 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\6042619.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 2288893 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2288893.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 5106702 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\5106702.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 6635148 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\6635148.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 2269481 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2269481.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 2708353 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2708353.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 7591136 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\7591136.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 2283395 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2283395.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 2287579 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2287579.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 2291533 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2291533.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 2292386 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2292386.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 0012505 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\0012505.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 2292084 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2292084.pickle %CONFIG_PATH% 
-::python src\build_dataset_v2.py 6518893 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\6518893.pickle %CONFIG_PATH% 
+::python src\build_dataset.py FULL %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\FULL.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 7427549 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\7427549.pickle %CONFIG_PATH% 
+python src\build_dataset.py 2268922 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2268922.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 7149328 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\7149328.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 2299216 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2299216.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 0106453 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\0106453.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 6870066 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\6870066.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 6042619 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\6042619.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 2288893 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2288893.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 5106702 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\5106702.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 6635148 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\6635148.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 2269481 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2269481.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 2708353 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2708353.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 7591136 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\7591136.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 2283395 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2283395.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 2287579 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2287579.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 2291533 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2291533.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 2292386 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2292386.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 0012505 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\0012505.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 2292084 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2292084.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 6518893 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\6518893.pickle %CONFIG_PATH% 
 
 :: Define the learner and task
 set TASK=REGRESSION
 set LEARNER=LstmNeuralNet
 
 :: Train the model for each pipeline
-python src\train_model.py -t %TASK% -l %LEARNER% -p "FULL"
+::python src\train_model.py -t %TASK% -l %LEARNER% -p "FULL"
 ::python src\train_model.py -t %TASK% -l %LEARNER% -p "7427549"
-::python src\train_model.py -t %TASK% -l %LEARNER% -p "2268922"
+python src\train_model.py -t %TASK% -l %LEARNER% -p "2268922"
 ::python src\train_model.py -t %TASK% -l %LEARNER% -p "7149328"
 ::python src\train_model.py -t %TASK% -l %LEARNER% -p "2299216"
 ::python src\train_model.py -t %TASK% -l %LEARNER% -p "0106453"

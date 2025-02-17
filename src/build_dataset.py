@@ -116,7 +116,7 @@ def build_dataset(id_unidade, sinan_path, cnes_path, era5_path, output_path, con
     for window in windows:
         sinan_df[f'TEMP_RANGE_ERA5_MM_{window}'] = sinan_df['TEMP_RANGE_ERA5'].rolling(window=window).mean()
    
-    sinan_df = sinan_df.drop(columns=['ID_AGRAVO', 'ID_UNIDADE'])
+    sinan_df = sinan_df.drop(columns=['ID_UNIDADE'])
     sinan_df.dropna(inplace=True)
     logging.info("Splitting data into train/val/test...")
     if isinstance(train_split, str):
@@ -173,16 +173,16 @@ def main():
     )
 
 if __name__ == "__main__":
-    main()
-    # SINAN_PATH="data\processed\sinan\DENG.parquet"
-    # CNES_PATH="data\processed\cnes\STRJ2401.parquet"
-    # ERA5_PATH=fr"data\raw\era5\RJ_1997_2024.nc"
-    # CONFIG_PATH="config\config.yaml"
-    # OUTPUT_PATH=fr"data\datasets\2268922.pickle"
-    # ID_UNIDADE="2268922"
-    # build_dataset(id_unidade=ID_UNIDADE,
-    #               sinan_path=SINAN_PATH,
-    #               cnes_path=CNES_PATH,
-    #               era5_path=ERA5_PATH,
-    #               output_path=OUTPUT_PATH,
-    #               config_path=CONFIG_PATH)
+    #main()
+    SINAN_PATH="data\processed\sinan\DENG.parquet"
+    CNES_PATH="data\processed\cnes\STRJ2401.parquet"
+    ERA5_PATH=fr"data\raw\era5\RJ_1997_2024.nc"
+    CONFIG_PATH="config\config.yaml"
+    OUTPUT_PATH=fr"data\datasets\2268922.pickle"
+    ID_UNIDADE="2268922"
+    build_dataset(id_unidade=ID_UNIDADE,
+                  sinan_path=SINAN_PATH,
+                  cnes_path=CNES_PATH,
+                  era5_path=ERA5_PATH,
+                  output_path=OUTPUT_PATH,
+                  config_path=CONFIG_PATH)

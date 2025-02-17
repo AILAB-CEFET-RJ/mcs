@@ -282,7 +282,7 @@ def main(argv):
     #train_weights = compute_weights_for_regression(X_test[:, :, 9], X_test[:, :, 12])
     #train_weights = torch.FloatTensor(train_weights)    
     test_loader = learner.create_dataloader(X_test, y_test, batch_size=BATCH_SIZE)
-    forecaster.print_evaluation_report(args.pipeline_id, test_loader, forecasting_task_id)
+    forecaster.save_evaluation_report(args.pipeline_id, test_loader)
 
 if __name__ == "__main__":
     start_time = time.time()

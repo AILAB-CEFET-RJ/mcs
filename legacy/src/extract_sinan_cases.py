@@ -19,7 +19,7 @@ def extract_sinan_cases(cnes_id, cod_uf, input_path, output_path, filled, start_
         if cod_uf is not None:
             df = df[df["SG_UF"] == cod_uf]
 
-        grouped_df = df.groupby(["ID_AGRAVO", "ID_UNIDADE", "DT_NOTIFIC"])
+        grouped_df = df.groupby(["ID_UNIDADE", "DT_NOTIFIC"])
         aggregated_df = grouped_df.size().reset_index(name="CASES")
         if filled:
             # Preenchendo lacunas no dataset
@@ -31,14 +31,14 @@ def extract_sinan_cases(cnes_id, cod_uf, input_path, output_path, filled, start_
             all_dates = pd.date_range(start=min_date, end=max_date, freq='D')
 
             all_combinations = pd.MultiIndex.from_product(
-                [aggregated_df["ID_AGRAVO"].unique(), aggregated_df["ID_UNIDADE"].unique(), all_dates],
-                names=["ID_AGRAVO", "ID_UNIDADE", "DT_NOTIFIC"]
+                [aggregated_df["ID_UNIDADE"].unique(), all_dates],
+                names=["ID_UNIDADE", "DT_NOTIFIC"]
             )
 
             all_combinations_df = pd.DataFrame(index=all_combinations).reset_index()
 
             # Mesclando com o DataFrame original
-            merged_df = pd.merge(all_combinations_df, aggregated_df, on=["ID_AGRAVO", "ID_UNIDADE", "DT_NOTIFIC"], how="left")
+            merged_df = pd.merge(all_combinations_df, aggregated_df, on=["ID_UNIDADE", "DT_NOTIFIC"], how="left")
             merged_df["CASES"] = merged_df["CASES"].fillna(0).astype(int)
 
             directory = os.path.dirname(output_path)

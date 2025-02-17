@@ -1,6 +1,7 @@
 .vscode/
 data/
 models/
+reports/
 backup/
  __pycache__/
  *.pyc
