@@ -4,17 +4,18 @@
 :: Define paths to input data and configuration
 set SINAN_PATH=data\processed\sinan\DENG.parquet
 set CNES_PATH=data\processed\cnes\STRJ2401.parquet
-set ERA5_PATH=data\raw\era5\RJ_1997_2024.nc
+::set ERA5_PATH=data\raw\era5\RJ_1997_2024.nc
+set ERA5_PATH=data/processed/inmet/aggregated.parquet
 set CONFIG_PATH=config\config.yaml
 set CONCAT_PATH=legacy/data/processed/sinan/concat.parquet
 
 ::python legacy/src/unify_sinan.py legacy/data/raw/sinan legacy/data/processed/sinan
-python legacy/src/extract_sinan_cases.py %CONCAT_PATH% %SINAN_PATH% --filled --cod_uf 33 --start_date 2020-01-01 --end_date 2023-12-31
+::python legacy/src/extract_sinan_cases.py %CONCAT_PATH% %SINAN_PATH% --filled --cod_uf 33 --start_date 2020-01-01 --end_date 2023-12-31
 
 :: Run the Python script for each pipeline
-::python src\build_dataset.py FULL %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\FULL.pickle %CONFIG_PATH% 
+::python src\build_dataset.py FULL %SINAN_PATH% %CNES_PATH% INMET %ERA5_PATH% data\datasets\FULL.pickle %CONFIG_PATH% 
 ::python src\build_dataset.py 7427549 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\7427549.pickle %CONFIG_PATH% 
-python src\build_dataset.py 2268922 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2268922.pickle %CONFIG_PATH% 
+::python src\build_dataset.py 2268922 %SINAN_PATH% %CNES_PATH% INMET %ERA5_PATH% data\datasets\2268922.pickle %CONFIG_PATH% 
 ::python src\build_dataset.py 7149328 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\7149328.pickle %CONFIG_PATH% 
 ::python src\build_dataset.py 2299216 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\2299216.pickle %CONFIG_PATH% 
 ::python src\build_dataset.py 0106453 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\0106453.pickle %CONFIG_PATH% 
@@ -39,9 +40,9 @@ set TASK=REGRESSION
 set LEARNER=LstmNeuralNet
 
 :: Train the model for each pipeline
-::python src\train_model.py -t %TASK% -l %LEARNER% -p "FULL"
+python src\train_model.py -t %TASK% -l %LEARNER% -p "FULL"
 ::python src\train_model.py -t %TASK% -l %LEARNER% -p "7427549"
-python src\train_model.py -t %TASK% -l %LEARNER% -p "2268922"
+::python src\train_model.py -t %TASK% -l %LEARNER% -p "2268922"
 ::python src\train_model.py -t %TASK% -l %LEARNER% -p "7149328"
 ::python src\train_model.py -t %TASK% -l %LEARNER% -p "2299216"
 ::python src\train_model.py -t %TASK% -l %LEARNER% -p "0106453"
