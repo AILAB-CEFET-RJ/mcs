@@ -10,10 +10,10 @@ set CONFIG_PATH=config\config.yaml
 set CONCAT_PATH=legacy/data/processed/sinan/concat.parquet
 
 ::python legacy/src/unify_sinan.py legacy/data/raw/sinan legacy/data/processed/sinan
-::python legacy/src/extract_sinan_cases.py %CONCAT_PATH% %SINAN_PATH% --filled --cod_uf 33 --start_date 2020-01-01 --end_date 2023-12-31
+python legacy/src/extract_sinan_cases.py %CONCAT_PATH% %SINAN_PATH% --filled --cod_uf 33 --start_date 2014-01-01 --end_date 2023-12-31
 
 :: Run the Python script for each pipeline
-::python src\build_dataset.py FULL %SINAN_PATH% %CNES_PATH% INMET %ERA5_PATH% data\datasets\FULL.pickle %CONFIG_PATH% 
+python src\build_dataset.py FULL %SINAN_PATH% %CNES_PATH% INMET %ERA5_PATH% data\datasets\FULL.pickle %CONFIG_PATH% 
 ::python src\build_dataset.py 7427549 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\7427549.pickle %CONFIG_PATH% 
 ::python src\build_dataset.py 2268922 %SINAN_PATH% %CNES_PATH% INMET %ERA5_PATH% data\datasets\2268922.pickle %CONFIG_PATH% 
 ::python src\build_dataset.py 7149328 %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\7149328.pickle %CONFIG_PATH% 
