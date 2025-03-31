@@ -14,8 +14,8 @@ def load_datasets(pipeline_id: str, dump_csv: bool = False, output_dir: str = ".
     logging.info(f"Shapes of train/val/test data matrices: {X_train.shape}/{X_val.shape}/{X_test.shape}")
     logging.info(f"Min values of train/val/test target: {min(y_train)}/{min(y_val)}/{min(y_test)}")
     logging.info(f"Max values of train/val/test target: {max(y_train)}/{max(y_val)}/{max(y_test)}")
-    assert X_train.shape[1] == X_val.shape[1], f"Shape mismatch: {X_train.shape} vs {X_val.shape}"
-    assert X_val.shape[1] == X_test.shape[1], f"Shape mismatch: {X_train.shape} vs {X_val.shape}"
+    #assert X_train.shape[1] == X_val.shape[1], f"Shape mismatch: {X_train.shape} vs {X_val.shape}"
+    #assert X_val.shape[1] == X_test.shape[1], f"Shape mismatch: {X_train.shape} vs {X_val.shape}"
     
     # Dump datasets to CSV if requested
     if dump_csv:

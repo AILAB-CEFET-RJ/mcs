@@ -39,7 +39,7 @@ class LstmNeuralNet(BaseNeuralNet):
             nn.Sigmoid()
          )
 
-    def create_dataloader(self, X, y, batch_size, weights = None):
+    def create_dataloader(self, X, y, batch_size, weights = None, shuffle = False):
         '''
         The X parameter is a numpy array having the following shape:
                     [batch_size, sequence_len, input_size] 
@@ -58,6 +58,8 @@ class LstmNeuralNet(BaseNeuralNet):
         y = torch.from_numpy(y.astype('float64'))
 
         if weights is None:
+            print(f"X shape:{X.shape}")
+            print(f"y shape:{y.shape}")
             ds = TensorDataset(X, y)
         else:
             print(X.shape)
@@ -65,6 +67,6 @@ class LstmNeuralNet(BaseNeuralNet):
             print(weights.shape)        
             ds = TensorDataset(X, y, weights)
 
-        loader = torch.utils.data.DataLoader(ds, batch_size=batch_size, shuffle=False, drop_last=True)
+        loader = torch.utils.data.DataLoader(ds, batch_size=batch_size, shuffle=shuffle, drop_last=True)
 
         return loader
