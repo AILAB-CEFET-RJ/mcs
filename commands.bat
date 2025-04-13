@@ -15,7 +15,7 @@ set CONCAT_PATH=data/processed/sinan/concat.parquet
 :: Run the Python script for each pipeline
 ::python src\build_dataset.py FULL %SINAN_PATH% %CNES_PATH% ERA5 %ERA5_PATH% data\datasets\RJ.pickle %CONFIG_PATH% 
 ::python src\build_dataset_agg.py FULL %SINAN_PATH% %CNES_PATH% ERA5 %ERA5_PATH% data\datasets\RJ_AGG.pickle %CONFIG_PATH% 
-python src\build_dataset_fixed.py FULL %SINAN_PATH% %CNES_PATH% ERA5 %ERA5_PATH% data\datasets\RJ_FIX.pickle %CONFIG_PATH% 
+::python src\build_dataset_fixed.py FULL %SINAN_PATH% %CNES_PATH% ERA5 %ERA5_PATH% data\datasets\RJ_FIX.pickle %CONFIG_PATH% 
 ::python src\build_dataset.py 7427549 %SINAN_PATH% %CNES_PATH% ERA5 %ERA5_PATH% data\datasets\7427549.pickle %CONFIG_PATH% 
 ::python src\build_dataset.py 2268922 %SINAN_PATH% %CNES_PATH% ERA5 %ERA5_PATH% data\datasets\2268922.pickle %CONFIG_PATH% 
 ::python src\build_dataset.py 7149328 %SINAN_PATH% %CNES_PATH% ERA5 %ERA5_PATH% data\datasets\7149328.pickle %CONFIG_PATH% 
@@ -43,6 +43,7 @@ set LEARNER=LstmNeuralNet
 
 :: Train the model for each pipeline
 ::python src\train_model.py -t %TASK% -l %LEARNER% -p "FULL"
+python src\train_randomforest.py --model xgboost --dataset data\datasets\2268922.pickle --outdir results
 ::python src\train_model.py -l %LEARNER% -p "7427549"
 ::python src\train_model.py -l %LEARNER% -p "2268922"
 ::python src\train_model.py -l %LEARNER% -p "7149328"

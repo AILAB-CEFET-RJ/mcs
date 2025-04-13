@@ -1,0 +1,39 @@
+
+📊 [TREINO] - Xgboost
+  MSE : 0.0000
+  RMSE: 0.0005
+  MAE : 0.0003
+  R²  : 1.0000
+  MAPE (ign. zeros): 0.02%
+
+📊 [VALIDAÇÃO] - Xgboost
+  MSE : 0.2154
+  RMSE: 0.4641
+  MAE : 0.1694
+  R²  : 0.7535
+  MAPE (ign. zeros): 25.32%
+
+📊 [TESTE] - Xgboost
+  MSE : 1.0247
+  RMSE: 1.0123
+  MAE : 0.7260
+  R²  : 0.7139
+  MAPE (ign. zeros): 33.80%
+
+📈 Avaliação Final no Conjunto de Teste:
+Erro absoluto médio: 0.726
+RMSE               : 1.012
+R²                 : 0.714
+Correlação Pearson : 0.845
+
+🔎 Top 10 variáveis mais importantes:
+Feature 296: Importance = 0.3435
+Feature 155: Importance = 0.0350
+Feature 272: Importance = 0.0343
+Feature 41: Importance = 0.0335
+Feature 96: Importance = 0.0280
+Feature 316: Importance = 0.0267
+Feature 300: Importance = 0.0258
+Feature 127: Importance = 0.0240
+Feature 229: Importance = 0.0191
+Feature 48: Importance = 0.0183
