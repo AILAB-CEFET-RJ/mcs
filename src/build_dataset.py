@@ -18,15 +18,23 @@ def find_nearest(lat, lon, tree, coords):
     dist, idx = tree.query([[lat, lon]], k=1)
     return coords[idx[0]]
 
-def extract_era5_data(ds, lat, lon, date):
+def extract_era5_data(ds, lat, lon, date, isweekly):
     """Extract ERA5 data for a specific location and date, including relative humidity calculations."""
 
     ds_point = ds.sel(latitude=lat, longitude=lon, method='nearest')
-    date_str = pd.Timestamp(date).strftime('%Y-%m-%d')
-    day_data = ds_point.sel(time=slice(f"{date_str}T00:00:00", f"{date_str}T23:00:00"))
+    if isweekly:
+        week_start = pd.Timestamp(date)
+        week_end = week_start + pd.Timedelta(days=6)
+        day_data = ds_point.sel(time=slice(f"{week_start.strftime('%Y-%m-%d')}T00:00:00", f"{week_end.strftime('%Y-%m-%d')}T23:00:00"))
+    else:
+        date_str = pd.Timestamp(date).strftime('%Y-%m-%d')
+        day_data = ds_point.sel(time=slice(f"{date_str}T00:00:00", f"{date_str}T23:00:00"))
 
     if day_data.time.size == 0:
-        raise ValueError(f"No data available for {date_str} at lat={lat}, lon={lon}")
+        if isweekly:
+            raise ValueError(f"No data available for week starting {week_start} at lat={lat}, lon={lon}")
+        else:
+            raise ValueError(f"No data available for {date_str} at lat={lat}, lon={lon}")
 
     # Extract temperature and precipitation
     tem_avg = day_data['t2m'].mean().item() - 273.15  # Convert from Kelvin to Celsius
@@ -52,7 +60,7 @@ def extract_era5_data(ds, lat, lon, date):
 
     return tem_avg, tem_min, tem_max, rain, rh_avg, rh_min, rh_max
 
-def create_era5_dataset(era5_df, sinan_df, era5_tree, era5_coords):
+def create_era5_dataset(era5_df, sinan_df, era5_tree, era5_coords, isweekly):
     """Create a dataset with ERA5 data mapped to the nearest coordinates for the sinan_df points."""
     
     # Calculate nearest ERA5 coordinates for all LAT/LNG pairs in sinan_df
@@ -71,14 +79,20 @@ def create_era5_dataset(era5_df, sinan_df, era5_tree, era5_coords):
     era5_data = []
     
     # Iterate over all unique date and coordinate combinations
-    unique_combinations = sinan_df[['DT_NOTIFIC', 'closest_LAT_ERA5', 'closest_LNG_ERA5']].drop_duplicates()
+    if isweekly:
+        unique_combinations = sinan_df[['DT_SEMANA', 'closest_LAT_ERA5', 'closest_LNG_ERA5']].drop_duplicates()
+    else:
+        unique_combinations = sinan_df[['DT_NOTIFIC', 'closest_LAT_ERA5', 'closest_LNG_ERA5']].drop_duplicates()
 
     for _, row in tqdm(unique_combinations.iterrows(), total=len(unique_combinations), desc="Extracting ERA5 data"):
-        date, lat, lon = row['DT_NOTIFIC'], row['closest_LAT_ERA5'], row['closest_LNG_ERA5']
+        if isweekly:
+            date, lat, lon = row['DT_SEMANA'], row['closest_LAT_ERA5'], row['closest_LNG_ERA5']
+        else:
+            date, lat, lon = row['DT_NOTIFIC'], row['closest_LAT_ERA5'], row['closest_LNG_ERA5']
         
         try:
             # Extract temperature, rainfall, and humidity data
-            tem_avg, tem_min, tem_max, rain, rh_avg, rh_min, rh_max = extract_era5_data(era5_df, lat, lon, date)
+            tem_avg, tem_min, tem_max, rain, rh_avg, rh_min, rh_max = extract_era5_data(era5_df, lat, lon, date, isweekly)
 
             # Append results to list
             era5_data.append([date, lat, lon, tem_avg, tem_min, tem_max, rain, rh_avg, rh_min, rh_max])
@@ -133,7 +147,7 @@ def create_new_features(df: pd.DataFrame):
 
     return df.drop(columns=['CASES']).to_numpy(), df['CASES'].to_numpy()
 
-def build_dataset(id_unidade, sinan_path, cnes_path, meteo_origin, dataset_path, output_path, config_path):
+def build_dataset(id_unidade, sinan_path, cnes_path, meteo_origin, dataset_path, output_path, config_path, lat, lon, isweekly):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Load configuration
@@ -158,16 +172,28 @@ def build_dataset(id_unidade, sinan_path, cnes_path, meteo_origin, dataset_path,
     sinan_df = pd.merge(sinan_df, cnes_df[['CNES', 'LAT', 'LNG']].rename(columns={'CNES': 'ID_UNIDADE'}), on='ID_UNIDADE', how='left')
     sinan_df.dropna(subset=['LAT', 'LNG'], inplace=True)
 
+    if isweekly:
+        sinan_df['DT_SEMANA'] = sinan_df['DT_NOTIFIC'].dt.to_period('W').apply(lambda r: r.start_time)
+        sinan_df = sinan_df.groupby(['ID_UNIDADE', 'DT_SEMANA']).agg({'CASES': 'sum','LAT': 'first','LNG': 'first'}).reset_index()
+
     logging.info("Merging datasets...")
     if meteo_origin == ERA5:
         era5_df = xr.open_dataset(dataset_path)
         logging.info("Extracting ERA5 data...")
+        if lat is not None and lon is not None:
+            sinan_df['LAT'] = lat
+            sinan_df['LNG'] = lon
         era5_coords = sinan_df[['LAT', 'LNG']].drop_duplicates()
         era5_tree = cKDTree(era5_coords[['LAT', 'LNG']].values)  
-        era5_data_df = create_era5_dataset(era5_df, sinan_df, era5_tree, era5_coords)
+        era5_data_df = create_era5_dataset(era5_df, sinan_df, era5_tree, era5_coords, isweekly)
         sinan_df = sinan_df.drop(columns=['LAT', 'LNG'])
         logging.info("Merging ERA5 data with SINAN data...")
-        sinan_df = pd.merge(sinan_df, era5_data_df, left_on=['DT_NOTIFIC', 'closest_LAT_ERA5', 'closest_LNG_ERA5'], right_on=['DT_NOTIFIC', 'LAT', 'LNG'], how='left')
+        if isweekly:
+            sinan_df = pd.merge(sinan_df, era5_data_df, left_on=['DT_SEMANA', 'closest_LAT_ERA5', 'closest_LNG_ERA5'], right_on=['DT_NOTIFIC', 'LAT', 'LNG'], how='left')
+            sinan_df = sinan_df.rename(columns={'DT_SEMANA': 'DT_NOTIFIC'})
+        else:
+            sinan_df = pd.merge(sinan_df, era5_data_df, left_on=['DT_NOTIFIC', 'closest_LAT_ERA5', 'closest_LNG_ERA5'], right_on=['DT_NOTIFIC', 'LAT', 'LNG'], how='left')
+        
         sinan_df = sinan_df.drop(columns=['closest_LAT_ERA5', 'closest_LNG_ERA5'])
 
     elif meteo_origin == INMET:
@@ -236,7 +262,14 @@ def main():
     parser.add_argument("dataset_path", help="Path to temperature/rain dataset")
     parser.add_argument("output_path", help="Output path for processed dataset")
     parser.add_argument("config_path", help="Path to configuration YAML file")
+    parser.add_argument("lat", help="Override the LAT for the whole dataset")
+    parser.add_argument("lon", help="Override the LON for the whole dataset")
+    parser.add_argument("isweekly", help="Aggregate weekly values")
     args = parser.parse_args()
+
+    isweekly = args.isweekly.lower() == 'true'
+    lat = float(args.lat) if args.lat.lower() != 'none' else None
+    lon = float(args.lon) if args.lon.lower() != 'none' else None
 
     build_dataset(
         id_unidade=args.id_unidade,
@@ -245,7 +278,10 @@ def main():
         meteo_origin=args.meteo_origin,
         dataset_path=args.dataset_path,
         output_path=args.output_path,
-        config_path=args.config_path
+        config_path=args.config_path,
+        lat=lat,
+        lon=lon,
+        isweekly=isweekly
     )
 
 if __name__ == "__main__":
