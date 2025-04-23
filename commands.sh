@@ -23,10 +23,10 @@ mkdir -p results/rj_randomforest_weekly_fixed
 # python legacy/src/extract_sinan_cases.py "$CONCAT_PATH" "$SINAN_PATH" --filled --cod_uf 33 --start_date 2013-01-01 --end_date 2023-12-31
 
 # Build datasets com diferentes cenários
-python src/build_dataset.py FULL "$SINAN_PATH" "$CNES_PATH" ERA5 data/datasets/RJ.pickle "$CONFIG_PATH" --lat none --lon none --isweekly false
-python src/build_dataset.py FULL "$SINAN_PATH" "$CNES_PATH" ERA5 data/datasets/RJ_FIXED.pickle "$CONFIG_PATH" --lat -22.861389 --lon -43.411389 --isweekly false
-python src/build_dataset.py FULL "$SINAN_PATH" "$CNES_PATH" ERA5 data/datasets/RJ_WEEKLY.pickle "$CONFIG_PATH" --lat none --lon none --isweekly true
-python src/build_dataset.py FULL "$SINAN_PATH" "$CNES_PATH" ERA5 data/datasets/RJ_WEEKLY_FIXED.pickle "$CONFIG_PATH" --lat -22.861389 --lon -43.411389 --isweekly true
+python src/build_dataset.py FULL "$SINAN_PATH" "$CNES_PATH" ERA5 "$ERA5_PATH" data/datasets/RJ.pickle "$CONFIG_PATH" none none false
+python src/build_dataset.py FULL "$SINAN_PATH" "$CNES_PATH" ERA5 "$ERA5_PATH" data/datasets/RJ_FIXED.pickle "$CONFIG_PATH" -22.861389 -43.411389 false
+python src/build_dataset.py FULL "$SINAN_PATH" "$CNES_PATH" ERA5 "$ERA5_PATH" data/datasets/RJ_WEEKLY.pickle "$CONFIG_PATH" none none true
+python src/build_dataset.py FULL "$SINAN_PATH" "$CNES_PATH" ERA5 "$ERA5_PATH" data/datasets/RJ_WEEKLY_FIXED.pickle "$CONFIG_PATH" -22.861389 -43.411389 true
 
 # Treinamento dos modelos XGBoost
 python src/train_regressor.py --model xgboost --dataset data/datasets/RJ.pickle --outdir results/rj_xgboost

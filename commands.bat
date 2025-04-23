@@ -12,10 +12,10 @@ set CONCAT_PATH=data/processed/sinan/concat.parquet
 ::python legacy/src/extract_sinan_cases.py %CONCAT_PATH% %SINAN_PATH% --filled --cod_uf 33 --start_date 2013-01-01 --end_date 2023-12-31
 
 :: Run the Python script for each pipeline
-python src\build_dataset.py FULL %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\RJ.pickle %CONFIG_PATH% none none false
-python src\build_dataset.py FULL %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\RJ_FIXED.pickle %CONFIG_PATH% -22.861389 -43.411389 false
-python src\build_dataset.py FULL %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\RJ_WEEKLY.pickle %CONFIG_PATH% none none true
-python src\build_dataset.py FULL %SINAN_PATH% %CNES_PATH% %ERA5_PATH% data\datasets\RJ_WEEKLY_FIXED.pickle %CONFIG_PATH% -22.861389 -43.411389 true
+python src\build_dataset.py FULL %SINAN_PATH% %CNES_PATH% ERA5 %ERA5_PATH% data\datasets\RJ.pickle %CONFIG_PATH% none none false
+python src\build_dataset.py FULL %SINAN_PATH% %CNES_PATH% ERA5 %ERA5_PATH% data\datasets\RJ_FIXED.pickle %CONFIG_PATH% -22.861389 -43.411389 false
+python src\build_dataset.py FULL %SINAN_PATH% %CNES_PATH% ERA5 %ERA5_PATH% data\datasets\RJ_WEEKLY.pickle %CONFIG_PATH% none none true
+python src\build_dataset.py FULL %SINAN_PATH% %CNES_PATH% ERA5 %ERA5_PATH% data\datasets\RJ_WEEKLY_FIXED.pickle %CONFIG_PATH% -22.861389 -43.411389 true
 
 :: Train the model for each pipeline
 ::python src\train_model.py -t %TASK% -l %LEARNER% -p "FULL"

@@ -147,7 +147,7 @@ def create_new_features(df: pd.DataFrame):
 
     return df.drop(columns=['CASES']).to_numpy(), df['CASES'].to_numpy()
 
-def build_dataset(id_unidade, sinan_path, cnes_path, meteo_origin, dataset_path, output_path, config_path, lat, lon, isweekly):
+def build_dataset(id_unidade, sinan_path, cnes_path, meteo_origin, meteo_path, output_path, config_path, lat, lon, isweekly):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Load configuration
@@ -178,7 +178,7 @@ def build_dataset(id_unidade, sinan_path, cnes_path, meteo_origin, dataset_path,
 
     logging.info("Merging datasets...")
     if meteo_origin == ERA5:
-        era5_df = xr.open_dataset(dataset_path)
+        era5_df = xr.open_dataset(meteo_path)
         logging.info("Extracting ERA5 data...")
         if lat is not None and lon is not None:
             sinan_df['LAT'] = lat
@@ -198,7 +198,7 @@ def build_dataset(id_unidade, sinan_path, cnes_path, meteo_origin, dataset_path,
 
     elif meteo_origin == INMET:
         logging.info("Extracting INMET data...")
-        inmet_df = pd.read_parquet(dataset_path)
+        inmet_df = pd.read_parquet(meteo_path)
         inmet_df['DT_MEDICAO'] = pd.to_datetime(inmet_df['DT_MEDICAO'], format='%Y-%m-%d')
         inmet_coords = inmet_df[['VL_LATITUDE', 'VL_LONGITUDE']].values
         
@@ -259,7 +259,7 @@ def main():
     parser.add_argument("sinan_path", help="Path to SINAN data")
     parser.add_argument("cnes_path", help="Path to CNES data")
     parser.add_argument("meteo_origin", help="Origin of temperature/rain data", choices=[INMET, ERA5], default=INMET)
-    parser.add_argument("dataset_path", help="Path to temperature/rain dataset")
+    parser.add_argument("meteo_path", help="Path to temperature/rain dataset")
     parser.add_argument("output_path", help="Output path for processed dataset")
     parser.add_argument("config_path", help="Path to configuration YAML file")
     parser.add_argument("lat", help="Override the LAT for the whole dataset")
@@ -276,7 +276,7 @@ def main():
         sinan_path=args.sinan_path,
         cnes_path=args.cnes_path,
         meteo_origin=args.meteo_origin,
-        dataset_path=args.dataset_path,
+        meteo_path=args.meteo_path,
         output_path=args.output_path,
         config_path=args.config_path,
         lat=lat,
@@ -289,7 +289,7 @@ if __name__ == "__main__":
     # SINAN_PATH="data\processed\sinan\DENG.parquet"
     # CNES_PATH="data\processed\cnes\STRJ2401.parquet"
     # #DATASET_PATH=fr"data\raw\era5\RJ_1997_2024.nc"
-    # DATASET_PATH=fr"data/processed/inmet/aggregated.parquet"
+    # METEO_PATH=fr"data/processed/inmet/aggregated.parquet"
     # METEO_ORIGIN=ERA5
     # CONFIG_PATH="config\config.yaml"
     # OUTPUT_PATH=fr"data\datasets\2268922.pickle"
@@ -298,6 +298,6 @@ if __name__ == "__main__":
     #               sinan_path=SINAN_PATH,
     #               cnes_path=CNES_PATH,
     #               meteo_origin=METEO_ORIGIN,
-    #               dataset_path=DATASET_PATH,
+    #               dataset_path=METEO_PATH,
     #               output_path=OUTPUT_PATH,
     #               config_path=CONFIG_PATH)
