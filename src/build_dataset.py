@@ -191,6 +191,7 @@ def build_dataset(id_unidade, sinan_path, cnes_path, meteo_origin, meteo_path, o
         if isweekly:
             sinan_df = pd.merge(sinan_df, era5_data_df, left_on=['DT_SEMANA', 'closest_LAT_ERA5', 'closest_LNG_ERA5'], right_on=['DT_NOTIFIC', 'LAT', 'LNG'], how='left')
             sinan_df = sinan_df.rename(columns={'DT_SEMANA': 'DT_NOTIFIC'})
+            sinan_df = sinan_df.loc[:, ~sinan_df.columns.duplicated()]
         else:
             sinan_df = pd.merge(sinan_df, era5_data_df, left_on=['DT_NOTIFIC', 'closest_LAT_ERA5', 'closest_LNG_ERA5'], right_on=['DT_NOTIFIC', 'LAT', 'LNG'], how='left')
         
@@ -217,15 +218,15 @@ def build_dataset(id_unidade, sinan_path, cnes_path, meteo_origin, meteo_path, o
     logging.info("Splitting data into train/val/test...")
     #Train
     train_split_date = pd.to_datetime(train_split)
-    train_df = sinan_df[sinan_df['DT_NOTIFIC'] < train_split_date]
-    remaining_df = sinan_df[sinan_df['DT_NOTIFIC'] >= train_split_date]
+    train_df = sinan_df[sinan_df['DT_NOTIFIC'] < train_split_date].copy()
+    remaining_df = sinan_df[sinan_df['DT_NOTIFIC'] >= train_split_date].copy()
     
     #Val
     val_split_date = pd.to_datetime(val_split)
-    val_df = remaining_df[remaining_df['DT_NOTIFIC'] < val_split_date]
+    val_df = remaining_df[remaining_df['DT_NOTIFIC'] < val_split_date].copy()
 
     #Test
-    test_df = remaining_df[remaining_df['DT_NOTIFIC'] >= val_split_date]
+    test_df = remaining_df[remaining_df['DT_NOTIFIC'] >= val_split_date].copy()
 
     logging.info("Creating additional features for train...")
     X_train, y_train = create_new_features(train_df)
