@@ -51,9 +51,9 @@ def evaluate_model(name, model, X_train, y_train, X_val, y_val, X_test, y_test, 
         log_lines.append(f"  R²  : {r2:.4f}")
         log_lines.append(f"  MAPE (ign. zeros): {mape:.2f}%")
 
-    y_pred_train = model.predict(X_train)
-    y_pred_val = model.predict(X_val)
-    y_pred_test = model.predict(X_test)
+    y_pred_train = np.round(model.predict(X_train))
+    y_pred_val = np.round(model.predict(X_val))
+    y_pred_test = np.round(model.predict(X_test))
 
     metrics("TREINO", y_train, y_pred_train)
     metrics("VALIDAÇÃO", y_val, y_pred_val)
