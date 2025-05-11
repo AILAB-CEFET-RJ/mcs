@@ -117,7 +117,7 @@ def apply_sliding_window(X, y, window_size):
     y_aligned = y[window_size - 1:]  
     return X_windows.squeeze(), y_aligned
 
-def create_new_features(df: pd.DataFrame, remove_zeroes: bool):
+def create_new_features(df: pd.DataFrame, zero_fraction: float = 1.0, subset: str = ""):
     df['IDEAL_TEMP'] = df['TEM_AVG'].apply(lambda x: 1 if 21 <= x <= 27 else 0)
     df['EXTREME_TEMP'] = df['TEM_AVG'].apply(lambda x: 1 if x <= 14 or x >= 38 else 0)
     df['SIGNIFICANT_RAIN'] = df['RAIN'].apply(lambda x: 1 if 0.010 <= x < 0.150 else 0)
@@ -144,14 +144,29 @@ def create_new_features(df: pd.DataFrame, remove_zeroes: bool):
     # Removendo colunas em branco
     df = df.drop(columns=['DT_NOTIFIC', 'LAT', 'LNG', 'ID_UNIDADE'])
     df.dropna(inplace=True)
-    
-    if remove_zeroes:
-        filtered_df = df[df['CASES'] > 0]
-        return filtered_df.drop(columns=['CASES']).to_numpy(), filtered_df['CASES'].to_numpy()
-    else:
-        return df.drop(columns=['CASES']).to_numpy(), df['CASES'].to_numpy()
 
-def build_dataset(id_unidade, sinan_path, cnes_path, meteo_origin, meteo_path, output_path, config_path, lat, lon, isweekly, remove_zeroes):
+    if 0 <= zero_fraction < 1.0:
+        zeros = df[df['CASES'] == 0]
+        non_zeros = df[df['CASES'] > 0]
+        keep_n = int(len(zeros) * zero_fraction)
+        sampled_zeros = zeros.sample(n=keep_n, random_state=42)
+        df = pd.concat([non_zeros, sampled_zeros]).sort_index()
+
+    X = df.drop(columns=['CASES']).to_numpy()
+    y = df['CASES'].to_numpy()
+
+    feature_names = df.drop(columns=['CASES']).columns.tolist()
+    feature_dict = pd.DataFrame({
+        "Index": range(len(feature_names)),
+        "Feature": feature_names
+    })
+    feature_dict.to_csv("feature_dictionary.csv", index=False)
+
+    logging.info(f"{subset} — Tamanho total: {len(y)}, Zeros: {(y == 0).sum()}, Não-Zeros: {(y > 0).sum()}")
+
+    return X, y
+
+def build_dataset(id_unidade, sinan_path, cnes_path, meteo_origin, meteo_path, output_path, config_path, lat, lon, isweekly, zero_fraction):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Load configuration
@@ -233,13 +248,13 @@ def build_dataset(id_unidade, sinan_path, cnes_path, meteo_origin, meteo_path, o
     test_df = remaining_df[remaining_df['DT_NOTIFIC'] >= val_split_date].copy()
 
     logging.info("Creating additional features for train...")
-    X_train, y_train = create_new_features(train_df, remove_zeroes)
+    X_train, y_train = create_new_features(train_df, zero_fraction)
 
     logging.info("Creating additional features for val...")
-    X_val, y_val = create_new_features(val_df, remove_zeroes)
+    X_val, y_val = create_new_features(val_df, zero_fraction)
 
     logging.info("Creating additional features for test...")
-    X_test, y_test = create_new_features(test_df, remove_zeroes)
+    X_test, y_test = create_new_features(test_df, 1.0)
 
     logging.info("Scaling columns")
     scaler = StandardScaler()
@@ -270,13 +285,13 @@ def main():
     parser.add_argument("lat", help="Override the LAT for the whole dataset")
     parser.add_argument("lon", help="Override the LON for the whole dataset")
     parser.add_argument("isweekly", help="Aggregate weekly values")
-    parser.add_argument("remove_zeroes", help="Remove 0 Cases from the final dataset")
+    parser.add_argument("zero_fraction", help="How many percent of 0 cases in the final dataset")
     args = parser.parse_args()
 
     isweekly = args.isweekly.lower() == 'true'
     lat = float(args.lat) if args.lat.lower() != 'none' else None
     lon = float(args.lon) if args.lon.lower() != 'none' else None
-    remove_zeroes = args.remove_zeroes.lower() == 'true'
+    zero_fraction = float(args.zero_fraction)
 
     build_dataset(
         id_unidade=args.id_unidade,
@@ -289,7 +304,7 @@ def main():
         lat=lat,
         lon=lon,
         isweekly=isweekly,
-        remove_zeroes=remove_zeroes
+        zero_fraction=zero_fraction
     )
 
 if __name__ == "__main__":
