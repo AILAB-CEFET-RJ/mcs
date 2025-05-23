@@ -8,8 +8,6 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score, m
 from scipy.stats import pearsonr
 import numpy as np
 import pandas as pd
-from statsmodels.discrete.count_model import ZeroInflatedPoisson
-import statsmodels.api as sm
 
 def get_model(model_name, seed):
     model_name = model_name.lower()
@@ -50,8 +48,6 @@ def get_model(model_name, seed):
             objective="reg:tweedie",
             tweedie_variance_power=1.1
         )
-    elif model_name == "zip":
-        return "ZIP"
     else:
         raise ValueError(f"\u274c Modelo não suportado: {model_name}")
 
@@ -88,31 +84,10 @@ def evaluate_model(name, model, X_train, y_train, X_val, y_val, X_test, y_test, 
         log_lines.append(f"  Poisson Deviance : {poisson_dev:.4f}")
         log_lines.append(f"  Tweedie Deviance : {tweedie_dev:.4f}")
 
-    if model == "ZIP":
-        # Treinamento com statsmodels
-        X_train_df = pd.DataFrame(X_train, columns=[f"x{i}" for i in range(X_train.shape[1])])
-        X_train_df = sm.add_constant(X_train_df)
-
-        zip_model = ZeroInflatedPoisson(endog=y_train, exog=X_train_df, exog_infl=X_train_df, inflation='logit')
-        result = zip_model.fit(maxiter=100, method="bfgs")
-
-        log_lines.append("\n📑 Resumo do Modelo ZIP:")
-        log_lines.append(result.summary().as_text())
-
-        # Predição
-        def predict_zip(X):
-            X_df = pd.DataFrame(X, columns=[f"x{i}" for i in range(X.shape[1])])
-            X_df = sm.add_constant(X_df)
-            return np.maximum(result.predict(X_df), 0)
-
-        y_pred_train = predict_zip(X_train)
-        y_pred_val = predict_zip(X_val)
-        y_pred_test = predict_zip(X_test)
-    else:        
-        model.fit(X_train, y_train)
-        y_pred_train = np.round(model.predict(X_train))
-        y_pred_val = np.round(model.predict(X_val))
-        y_pred_test = np.round(model.predict(X_test))
+    model.fit(X_train, y_train)
+    y_pred_train = np.round(model.predict(X_train))
+    y_pred_val = np.round(model.predict(X_val))
+    y_pred_test = np.round(model.predict(X_test))
 
     metrics("TREINO", y_train, y_pred_train)
     metrics("VALIDAÇÃO", y_val, y_pred_val)
@@ -146,15 +121,35 @@ def evaluate_model(name, model, X_train, y_train, X_val, y_val, X_test, y_test, 
 
     if hasattr(model, "feature_importances_"):
         importances = model.feature_importances_
-        feature_names = pd.read_csv("feature_dictionary.csv")["Feature"].tolist()
+
+        # Carrega o nome original das features
+        try:
+            original_features = pd.read_csv("feature_dictionary.csv")["Feature"].tolist()
+        except Exception as e:
+            print(f"⚠️ Erro ao carregar feature_dictionary.csv: {e}")
+            original_features = [f"f{i}" for i in range(X_train.shape[1] // window_size)]
+
+        # Gera nomes expandidos considerando sliding window
+        def get_sliding_feature_names(original_features, window_size):
+            return [
+                f"{f}_t-{i}" for i in reversed(range(window_size)) for f in original_features
+            ]
+
+        window_size = X_train.shape[1] // len(original_features)
+        all_features = get_sliding_feature_names(original_features, window_size)
+
+        if len(all_features) != len(importances):
+            print(f"⚠️ Tamanho dos nomes de features ({len(all_features)}) difere de importances ({len(importances)}). Gerando nomes genéricos.")
+            all_features = [f"Feature_{i}" for i in range(len(importances))]
+
         importance_df = pd.DataFrame({
-            "Feature": feature_names,
+            "Feature": all_features,
             "Importance": importances
         }).sort_values("Importance", ascending=False)
 
         importance_df.to_csv(os.path.join(outdir, f"feature_importance_{name.lower()}.csv"), index=False)
 
-        # Gerar histograma
+        # Histograma das top 20
         import matplotlib.pyplot as plt
         top_n = 20
         plt.figure(figsize=(10, 6))

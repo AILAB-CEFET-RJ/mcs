@@ -129,8 +129,8 @@ def create_new_features(df: pd.DataFrame, zero_fraction: float = 1.0, subset: st
     for window in windows:
         df[f'TEM_AVG_MM_{window}'] = df['TEM_AVG'].rolling(window=window).mean()
 
-        df[f'CASES_MM_{window}'] = df['CASES'].rolling(window=window).mean()
-        df[f'CASES_ACC_{window}'] = df['CASES'].rolling(window=window).sum()
+        # df[f'CASES_MM_{window}'] = df['CASES'].rolling(window=window).mean()
+        # df[f'CASES_ACC_{window}'] = df['CASES'].rolling(window=window).sum()
         
         df[f'RAIN_ACC_{window}'] = df['RAIN'].rolling(window=window).sum()
         df[f'RAIN_MM_{window}'] = df['RAIN'].rolling(window=window).mean()
@@ -138,8 +138,8 @@ def create_new_features(df: pd.DataFrame, zero_fraction: float = 1.0, subset: st
         df[f'RH_MM_{window}'] = df['RH_AVG'].rolling(window=window).mean()
         df[f'TEMP_RANGE_MM_{window}'] = df['TEMP_RANGE'].rolling(window=window).mean()
     
-    for lag in range(1, 7):
-        df[f'CASES_LAG_{lag}'] = df['CASES'].shift(lag)
+    # for lag in range(1, 7):
+    #     df[f'CASES_LAG_{lag}'] = df['CASES'].shift(lag)
 
     # Removendo colunas em branco
     df = df.drop(columns=['DT_NOTIFIC', 'LAT', 'LNG', 'ID_UNIDADE'])
@@ -180,12 +180,16 @@ def build_dataset(id_unidade, sinan_path, cnes_path, meteo_origin, meteo_path, o
 
     logging.info("Loading datasets...")
     sinan_df = pd.read_parquet(sinan_path)
-    if id_unidade != FULL:
-        sinan_df = sinan_df[sinan_df["ID_UNIDADE"] == id_unidade]
-    cnes_df = pd.read_parquet(cnes_path)
-
     sinan_df['DT_NOTIFIC'] = pd.to_datetime(sinan_df['DT_NOTIFIC'])
     sinan_df['ID_UNIDADE'] = sinan_df['ID_UNIDADE'].astype(str)
+    val_split_date = pd.to_datetime(val_split)
+
+    if id_unidade != FULL:
+        unidade_df = sinan_df[(sinan_df['DT_NOTIFIC'] >= val_split_date) & (sinan_df["ID_UNIDADE"] == id_unidade)].copy()
+        temp_df = sinan_df[(sinan_df['DT_NOTIFIC'] < val_split_date) & (sinan_df["ID_UNIDADE"] != id_unidade)].copy()
+        sinan_df = pd.concat([temp_df, unidade_df], ignore_index=True)
+
+    cnes_df = pd.read_parquet(cnes_path)
     cnes_df['CNES'] = cnes_df['CNES'].astype(str)
 
     sinan_df = pd.merge(sinan_df, cnes_df[['CNES', 'LAT', 'LNG']].rename(columns={'CNES': 'ID_UNIDADE'}), on='ID_UNIDADE', how='left')

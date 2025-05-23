@@ -4,6 +4,7 @@ models/
 reports/
 backup/
 results/
+tests/
  __pycache__/
  *.pyc
 

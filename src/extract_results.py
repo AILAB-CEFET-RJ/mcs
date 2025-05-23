@@ -16,7 +16,7 @@ def extract_metrics_from_txt(text):
                 "MSE": float(re.search(r"MSE\s*:\s*([\d.]+)", metrics_text).group(1)),
                 "RMSE": float(re.search(r"RMSE\s*:\s*([\d.]+)", metrics_text).group(1)),
                 "MAE": float(re.search(r"MAE\s*:\s*([\d.]+)", metrics_text).group(1)),
-                "R2": float(re.search(r"R²\s*:\s*([\d.]+)", metrics_text).group(1)),
+                "R2": float(re.search(r"R(?:2|²)\s*:\s*(-?[\d.]+)", metrics_text).group(1)),
                 "MAPE (%)": float(re.search(r"MAPE.*?:\s*([\d.]+)", metrics_text).group(1))
             }
             results.append(metrics)
@@ -24,7 +24,7 @@ def extract_metrics_from_txt(text):
     return results
 
 # Caminho principal
-base_path = 'test'
+base_path = 'test_full'
 
 # Lista de resultados
 all_results = []
