@@ -129,8 +129,8 @@ def create_new_features(df: pd.DataFrame, zero_fraction: float = 1.0, subset: st
     for window in windows:
         df[f'TEM_AVG_MM_{window}'] = df['TEM_AVG'].rolling(window=window).mean()
 
-        # df[f'CASES_MM_{window}'] = df['CASES'].rolling(window=window).mean()
-        # df[f'CASES_ACC_{window}'] = df['CASES'].rolling(window=window).sum()
+        df[f'CASES_MM_{window}'] = df['CASES'].rolling(window=window).mean()
+        df[f'CASES_ACC_{window}'] = df['CASES'].rolling(window=window).sum()
         
         df[f'RAIN_ACC_{window}'] = df['RAIN'].rolling(window=window).sum()
         df[f'RAIN_MM_{window}'] = df['RAIN'].rolling(window=window).mean()
@@ -138,8 +138,8 @@ def create_new_features(df: pd.DataFrame, zero_fraction: float = 1.0, subset: st
         df[f'RH_MM_{window}'] = df['RH_AVG'].rolling(window=window).mean()
         df[f'TEMP_RANGE_MM_{window}'] = df['TEMP_RANGE'].rolling(window=window).mean()
     
-    # for lag in range(1, 7):
-    #     df[f'CASES_LAG_{lag}'] = df['CASES'].shift(lag)
+    for lag in range(1, 7):
+        df[f'CASES_LAG_{lag}'] = df['CASES'].shift(lag)
 
     # Removendo colunas em branco
     df = df.drop(columns=['DT_NOTIFIC', 'LAT', 'LNG', 'ID_UNIDADE'])

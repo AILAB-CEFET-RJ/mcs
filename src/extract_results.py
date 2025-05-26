@@ -24,7 +24,7 @@ def extract_metrics_from_txt(text):
     return results
 
 # Caminho principal
-base_path = 'test_full'
+base_path = 'test'
 
 # Lista de resultados
 all_results = []

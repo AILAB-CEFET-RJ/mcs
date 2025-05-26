@@ -34,10 +34,10 @@ $coord_map = @{
 
 # === Modelos a treinar ===
 $models = @(
-    #"randomforest"
-    "xgboost"
-    "xgboost_poisson"
-    "xgboost_tweedie"
+    "randomforest"
+    #"xgboost"
+    #"xgboost_poisson"
+    #"xgboost_tweedie"
 )
 
 # === Seeds para replicabilidade ===
@@ -63,7 +63,7 @@ foreach ($dataset in $zeroes_map.Keys) {
     $out_path = Join-Path $DATASET_DIR "$dataset.pickle"
 
     Write-Host "🔧 $dataset (weekly=$weekly | zeros=$zeros | lat=$lat lon=$lon)"
-    python src/build_dataset.py FULL "$SINAN_PATH" "$CNES_PATH" ERA5 "$ERA5_PATH" "$out_path" "$CONFIG_PATH" "$lat" "$lon" "$weekly" "$zeros"
+    #python src/build_dataset.py FULL "$SINAN_PATH" "$CNES_PATH" ERA5 "$ERA5_PATH" "$out_path" "$CONFIG_PATH" "$lat" "$lon" "$weekly" "$zeros"
 }
 
 # === Loop principal de treinamento ===
