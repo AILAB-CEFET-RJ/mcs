@@ -5,10 +5,15 @@ import os
 
 
 def plot_pie(y, title, ax):
+    # 📊 Contagem de amostras zero e não zero
     zero_count = (y == 0).sum()
     non_zero_count = (y != 0).sum()
-    total = len(y)
+    total_amostras = len(y)
 
+    # 🔢 Soma dos casos
+    total_casos = y.sum()
+
+    # 🎨 Gráfico de pizza baseado em amostras (não valores)
     ax.pie(
         [zero_count, non_zero_count],
         labels=['Zero', 'Não Zero'],
@@ -16,7 +21,13 @@ def plot_pie(y, title, ax):
         colors=['#FF9999', '#99FF99'],
         startangle=90
     )
-    ax.set_title(f"{title}\nTotal: {total} amostras", fontsize=12)
+
+    # 🏷️ Título do gráfico mostrando claramente amostras e quantidade de casos
+    ax.set_title(
+        f"{title}\n"
+        f"Amostras: {total_amostras} | Total de Casos: {total_casos:.0f}",
+        fontsize=11
+    )
 
 
 if __name__ == "__main__":
@@ -40,7 +51,7 @@ if __name__ == "__main__":
     plot_pie(y_val, "Validação", axs[1])
     plot_pie(y_test, "Teste", axs[2])
 
-    plt.suptitle(f"{dataset_title} — Proporção de Zeros e Não Zeros", fontsize=16)
+    plt.suptitle(f"{dataset_title} — Proporção de Amostras Zero e Não Zero", fontsize=16)
     plt.tight_layout(rect=[0, 0.05, 1, 0.95])
 
     # 💾 Salvar o gráfico

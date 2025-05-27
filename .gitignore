@@ -5,6 +5,7 @@ reports/
 backup/
 results/
 tests/
+test/
  __pycache__/
  *.pyc
 
