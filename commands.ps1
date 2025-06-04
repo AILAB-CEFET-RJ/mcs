@@ -36,7 +36,7 @@ $coord_map = @{
 $models = @(
     "randomforest"
     #"xgboost"
-    #"xgboost_poisson"
+    "xgboost_poisson"
     #"xgboost_tweedie"
 )
 
