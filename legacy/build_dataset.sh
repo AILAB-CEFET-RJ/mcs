@@ -12,7 +12,7 @@
 #python src/utils/download_sinan_file.py DENG 2022 data/raw/sinan
 #python src/utils/download_sinan_file.py DENG 2023 data/raw/sinan
 #python legacy/src/unify_sinan.py legacy/data/raw/sinan legacy/data/processed/sinan
-#python legacy/src/extract_sinan_cases.py legacy/data/processed/sinan/concat.parquet data/processed/sinan/DENG.parquet --filled --cod_uf 33 --start_date 2002-01-01 --end_date 2024-12-31
+#python legacy/src/extract_sinan_cases.py legacy/data/processed/sinan/concat.parquet data/processed/sinan/DENG.parquet --filled --cod_uf 33 --start_date 2018-01-01 --end_date 2023-12-31
 
 # Download inmet data - OK
 python legacy/src/utils/download_inmet_data.py -s A617 -b 2019 -e 2023 -o data/raw/inmet --api_token $INMET_API_TOKEN

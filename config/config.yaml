@@ -1,8 +1,8 @@
 target: CASES
 preproc:
   SLIDING_WINDOW_SIZE : 7
-  TRAIN_SPLIT : '2019-12-31'
-  VAL_SPLIT : '2022-12-31'
+  TRAIN_SPLIT: '2022-01-01'
+  VAL_SPLIT: '2023-01-01'
 training:
   bc:
     BATCH_SIZE : 1024
