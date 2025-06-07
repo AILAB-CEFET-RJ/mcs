@@ -117,7 +117,7 @@ def apply_sliding_window(X, y, window_size):
     y_aligned = y[window_size - 1:]  
     return X_windows.squeeze(), y_aligned
 
-def create_new_features(df: pd.DataFrame, zero_fraction: float = 1.0, subset: str = ""):
+def create_new_features(df: pd.DataFrame, subset: str = ""):
     df['IDEAL_TEMP'] = df['TEM_AVG'].apply(lambda x: 1 if 21 <= x <= 27 else 0)
     df['EXTREME_TEMP'] = df['TEM_AVG'].apply(lambda x: 1 if x <= 14 or x >= 38 else 0)
     df['SIGNIFICANT_RAIN'] = df['RAIN'].apply(lambda x: 1 if 0.010 <= x < 0.150 else 0)
@@ -145,13 +145,6 @@ def create_new_features(df: pd.DataFrame, zero_fraction: float = 1.0, subset: st
     df = df.drop(columns=['DT_NOTIFIC', 'LAT', 'LNG', 'ID_UNIDADE'])
     df.dropna(inplace=True)
 
-    if 0 <= zero_fraction < 1.0:
-        zeros = df[df['CASES'] == 0]
-        non_zeros = df[df['CASES'] > 0]
-        keep_n = int(len(zeros) * zero_fraction)
-        sampled_zeros = zeros.sample(n=keep_n, random_state=42)
-        df = pd.concat([non_zeros, sampled_zeros]).sort_index()
-
     X = df.drop(columns=['CASES']).to_numpy()
     y = df['CASES'].to_numpy()
 
@@ -166,7 +159,7 @@ def create_new_features(df: pd.DataFrame, zero_fraction: float = 1.0, subset: st
 
     return X, y
 
-def build_dataset(id_unidade, sinan_path, cnes_path, meteo_origin, meteo_path, output_path, config_path, lat, lon, isweekly, zero_fraction):
+def build_dataset(id_unidade, sinan_path, cnes_path, meteo_origin, meteo_path, output_path, config_path, isweekly):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Load configuration
@@ -203,9 +196,6 @@ def build_dataset(id_unidade, sinan_path, cnes_path, meteo_origin, meteo_path, o
     if meteo_origin == ERA5:
         era5_df = xr.open_dataset(meteo_path)
         logging.info("Extracting ERA5 data...")
-        if lat is not None and lon is not None:
-            sinan_df['LAT'] = lat
-            sinan_df['LNG'] = lon
         era5_coords = sinan_df[['LAT', 'LNG']].drop_duplicates()
         era5_tree = cKDTree(era5_coords[['LAT', 'LNG']].values)  
         era5_data_df = create_era5_dataset(era5_df, sinan_df, era5_tree, era5_coords, isweekly)
@@ -252,13 +242,13 @@ def build_dataset(id_unidade, sinan_path, cnes_path, meteo_origin, meteo_path, o
     test_df = remaining_df[remaining_df['DT_NOTIFIC'] >= val_split_date].copy()
 
     logging.info("Creating additional features for train...")
-    X_train, y_train = create_new_features(train_df, zero_fraction)
+    X_train, y_train = create_new_features(train_df, "Train")
 
     logging.info("Creating additional features for val...")
-    X_val, y_val = create_new_features(val_df, zero_fraction)
+    X_val, y_val = create_new_features(val_df, "Val")
 
     logging.info("Creating additional features for test...")
-    X_test, y_test = create_new_features(test_df, 1.0)
+    X_test, y_test = create_new_features(test_df, "Test")
 
     logging.info("Scaling columns")
     scaler = StandardScaler()
@@ -286,16 +276,10 @@ def main():
     parser.add_argument("meteo_path", help="Path to temperature/rain dataset")
     parser.add_argument("output_path", help="Output path for processed dataset")
     parser.add_argument("config_path", help="Path to configuration YAML file")
-    parser.add_argument("lat", help="Override the LAT for the whole dataset")
-    parser.add_argument("lon", help="Override the LON for the whole dataset")
     parser.add_argument("isweekly", help="Aggregate weekly values")
-    parser.add_argument("zero_fraction", help="How many percent of 0 cases in the final dataset")
     args = parser.parse_args()
 
     isweekly = args.isweekly.lower() == 'true'
-    lat = float(args.lat) if args.lat.lower() != 'none' else None
-    lon = float(args.lon) if args.lon.lower() != 'none' else None
-    zero_fraction = float(args.zero_fraction)
 
     build_dataset(
         id_unidade=args.id_unidade,
@@ -305,26 +289,8 @@ def main():
         meteo_path=args.meteo_path,
         output_path=args.output_path,
         config_path=args.config_path,
-        lat=lat,
-        lon=lon,
         isweekly=isweekly,
-        zero_fraction=zero_fraction
     )
 
 if __name__ == "__main__":
     main()
-    # SINAN_PATH="data\processed\sinan\DENG.parquet"
-    # CNES_PATH="data\processed\cnes\STRJ2401.parquet"
-    # #DATASET_PATH=fr"data\raw\era5\RJ_1997_2024.nc"
-    # METEO_PATH=fr"data/processed/inmet/aggregated.parquet"
-    # METEO_ORIGIN=ERA5
-    # CONFIG_PATH="config\config.yaml"
-    # OUTPUT_PATH=fr"data\datasets\2268922.pickle"
-    # ID_UNIDADE="2268922"
-    # build_dataset(id_unidade=ID_UNIDADE,
-    #               sinan_path=SINAN_PATH,
-    #               cnes_path=CNES_PATH,
-    #               meteo_origin=METEO_ORIGIN,
-    #               dataset_path=METEO_PATH,
-    #               output_path=OUTPUT_PATH,
-    #               config_path=CONFIG_PATH)

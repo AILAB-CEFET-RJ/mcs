@@ -156,6 +156,12 @@ def evaluate_model(name, model, X_train, y_train, X_val, y_val, X_test, y_test, 
         )
     else:
         model.fit(X_train, y_train)
+
+    if hasattr(model, 'best_iteration'):
+        y_pred_test = model.predict(X_test, iteration_range=(0, model.best_iteration + 1))
+    else:
+        y_pred_test = model.predict(X_test)
+        
     y_pred_train = np.round(model.predict(X_train))
     y_pred_val = np.round(model.predict(X_val))
     y_pred_test = np.round(model.predict(X_test))
