@@ -3,57 +3,25 @@ import os
 import pickle
 import joblib
 from sklearn.ensemble import RandomForestRegressor
-from xgboost import XGBRegressor
+from xgboost import XGBRegressor, callback
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score, mean_poisson_deviance, mean_tweedie_deviance
 from scipy.stats import pearsonr
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-def get_model(model_name, seed):
-    model_name = model_name.lower()
-    if model_name == "randomforest":
-        return RandomForestRegressor(
-            n_estimators=300,
-            max_depth=10,
-            random_state=seed,
-            n_jobs=8,
-            verbose=1
-        )
-    elif model_name == "xgboost":
-        return XGBRegressor(
-            n_estimators=300,
-            max_depth=10,
-            random_state=seed,
-            n_jobs=8,
-            verbosity=1,
-            early_stopping_rounds=10,
-            objective="reg:squarederror"
-        )
-    elif model_name == "xgboost_poisson":
-        return XGBRegressor(
-            n_estimators=300,
-            max_depth=10,
-            random_state=seed,
-            n_jobs=8,
-            verbosity=1,
-            objective="count:poisson",
-            early_stopping_rounds=10,
-            eval_metric="poisson-nloglik"
-        )
-    elif model_name == "xgboost_tweedie":
-        return XGBRegressor(
-            n_estimators=300,
-            max_depth=10,
-            random_state=seed,
-            n_jobs=8,
-            verbosity=1,
-            objective="reg:tweedie",
-            early_stopping_rounds=10,
-            tweedie_variance_power=1.1
-        )
-    else:
-        raise ValueError(f"\u274c Modelo não suportado: {model_name}")
+def get_model(seed):
+    return XGBRegressor(
+        n_estimators=300,
+        max_depth=10,
+        random_state=seed,
+        n_jobs=8,
+        verbosity=1,
+        objective="count:poisson",
+        early_stopping_rounds=10,
+        eval_metric="poisson-nloglik",
+        callbacks=[callback.EarlyStopping(rounds=20)]
+    )
 
 def smape(y_true, y_pred):
     return 100 * np.mean(
@@ -148,14 +116,7 @@ def evaluate_model(name, model, X_train, y_train, X_val, y_val, X_test, y_test, 
         log_lines.append(f"  Poisson Deviance : {poisson_dev:.4f}")
         log_lines.append(f"  Tweedie Deviance : {tweedie_dev:.4f}")
 
-    if isinstance(model, XGBRegressor):
-        model.fit(
-            X_train, y_train,
-            eval_set=[(X_train, y_train), (X_val, y_val)],
-            verbose=False
-        )
-    else:
-        model.fit(X_train, y_train)
+    model.fit(X_train, y_train, eval_set=[(X_train, y_train), (X_val, y_val)], verbose=False)
 
     if hasattr(model, 'best_iteration'):
         y_pred_test = model.predict(X_test, iteration_range=(0, model.best_iteration + 1))
@@ -250,23 +211,17 @@ def evaluate_model(name, model, X_train, y_train, X_val, y_val, X_test, y_test, 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Treinamento de modelo para previsão de dengue")
-    parser.add_argument("--model", type=str, required=True,
-                        choices=["randomforest", "xgboost", "xgboost_poisson", "xgboost_tweedie"],
-                        help="Modelo a ser usado")
-    parser.add_argument("--dataset", type=str, required=True,
-                        help="Caminho para o arquivo .pickle com os dados")
-    parser.add_argument("--outdir", type=str, required=True,
-                        help="Diretório para salvar resultados")
-    parser.add_argument("--seed", type=int, required=True,
-                        help="Seed")    
+    parser.add_argument("--dataset", type=str, required=True, help="Caminho para o arquivo .pickle com os dados")
+    parser.add_argument("--outdir", type=str, required=True, help="Diretório para salvar resultados")
+    parser.add_argument("--seed", type=int, required=True, help="Seed")    
 
     args = parser.parse_args()
 
-    print(f"🔍 Treinando modelo: {args.model}")
+    print(f"🔍 Treinando modelo XGBoost - Poisson")
     seed = 987
     if args.seed:
         seed = args.seed
-    model = get_model(args.model, seed)
+    model = get_model(seed)
 
     with open(args.dataset, "rb") as file:
         (X_train, y_train, X_val, y_val, X_test, y_test) = pickle.load(file)

@@ -5,7 +5,8 @@ $SINAN_PATH = "data/processed/sinan/DENG.parquet"
 $CNES_PATH = "data/processed/cnes/STRJ2401.parquet"
 $CONFIG_PATH = "config/config.yaml"
 $DATASET_DIR = "data/datasets"
-$RESULTS_DIR = "test"
+$ERA5_PATH= "data/raw/era5/RJ_1997_2024.nc"
+$RESULTS_DIR = "test_yescases_unoptmized"
 
 # === Lista de nomes dos datasets ===
 $weekly_map = @{
@@ -38,13 +39,15 @@ foreach ($dataset in $weekly_map.Keys) {
     $out_path = Join-Path $DATASET_DIR "$dataset.pickle"
 
     Write-Host "🔧 $dataset (weekly=$weekly)"
-    # python src/build_dataset_cases.py `
-    #     FULL `
-    #     "$SINAN_PATH" `
-    #     "$CNES_PATH" `
-    #     "$out_path" `
-    #     "$CONFIG_PATH" `
-    #     "$weekly"
+    python src/build_dataset.py `
+        FULL `
+        "$SINAN_PATH" `
+        "$CNES_PATH" `
+        ERA5 `
+        "$ERA5_PATH" `
+        "$out_path" `
+        "$CONFIG_PATH" `
+        "$weekly"
 }
 
 # === Loop principal de treinamento ===
