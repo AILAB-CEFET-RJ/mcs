@@ -6,12 +6,21 @@ $CNES_PATH = "data/processed/cnes/STRJ2401.parquet"
 $CONFIG_PATH = "config/config.yaml"
 $DATASET_DIR = "data/datasets"
 $ERA5_PATH= "data/raw/era5/RJ_1997_2024.nc"
-$RESULTS_DIR = "test_yescases_unoptmized"
+$RESULTS_DIR = "test_unoptmized"
 
 # === Lista de nomes dos datasets ===
 $weekly_map = @{
     "RJ" = $false
+    "RJ_CASESONLY" = $false
     "RJ_WEEKLY" = $true
+    "RJ_WEEKLY_CASESONLY" = $true
+}
+
+$casesonly_map = @{
+    "RJ" = $false
+    "RJ_CASESONLY" = $true
+    "RJ_WEEKLY" = $false
+    "RJ_WEEKLY_CASESONLY" = $true
 }
 
 # === Modelos a treinar ===
@@ -36,18 +45,19 @@ if (-not (Test-Path -Path $RESULTS_DIR -PathType Container)) {
 Write-Host "📦 Construindo datasets..."
 foreach ($dataset in $weekly_map.Keys) {
     $weekly = $weekly_map[$dataset]
+    $casesonly = $casesonly_map[$dataset]
     $out_path = Join-Path $DATASET_DIR "$dataset.pickle"
 
-    Write-Host "🔧 $dataset (weekly=$weekly)"
+    Write-Host "🔧 $dataset (weekly=$weekly, casesonly=$casesonly)"
     python src/build_dataset.py `
         FULL `
         "$SINAN_PATH" `
         "$CNES_PATH" `
-        ERA5 `
         "$ERA5_PATH" `
         "$out_path" `
         "$CONFIG_PATH" `
-        "$weekly"
+        "$weekly" `
+        "$casesonly"
 }
 
 # === Loop principal de treinamento ===
@@ -64,8 +74,7 @@ foreach ($seed in $seeds) {
             }
 
             if (Test-Path -Path $dataset_path) {
-                python src/train_regressor.py `
-                    --model "$model" `
+                python src/train_xgboost_poisson.py `
                     --dataset "$dataset_path" `
                     --outdir "$outdir" `
                     --seed "$seed"
