@@ -89,27 +89,34 @@ def apply_sliding_window(X, y, window_size):
     y_aligned = y[window_size - 1:]
     return X_windows.squeeze(), y_aligned
 
-def create_new_features(df: pd.DataFrame, subset: str = ""):
-    df = df.sort_values(by='DT_NOTIFIC')  # CORRIGIDO
-    df['IDEAL_TEMP'] = df['TEM_AVG'].apply(lambda x: 1 if 21 <= x <= 27 else 0)
-    df['EXTREME_TEMP'] = df['TEM_AVG'].apply(lambda x: 1 if x <= 14 or x >= 38 else 0)
-    df['SIGNIFICANT_RAIN'] = df['RAIN'].apply(lambda x: 1 if 0.010 <= x < 0.150 else 0)
-    df['EXTREME_RAIN'] = df['RAIN'].apply(lambda x: 1 if x >= 0.150 else 0)
-    df['TEMP_RANGE'] = df['TEM_MAX'] - df['TEM_MIN']
-    df['WEEK_OF_YEAR'] = df['DT_NOTIFIC'].dt.isocalendar().week
-
+def create_new_features(df: pd.DataFrame, subset: str = "", casesonly: bool = False):
     windows = [7, 14, 21, 28]
-    for window in windows:
-        df[f'TEM_AVG_MM_{window}'] = df['TEM_AVG'].rolling(window=window).mean()
-        df[f'CASES_MM_{window}'] = df['CASES'].rolling(window=window).mean()
-        df[f'CASES_ACC_{window}'] = df['CASES'].rolling(window=window).sum()
-        df[f'RAIN_ACC_{window}'] = df['RAIN'].rolling(window=window).sum()
-        df[f'RAIN_MM_{window}'] = df['RAIN'].rolling(window=window).mean()
-        df[f'RH_MM_{window}'] = df['RH_AVG'].rolling(window=window).mean()
-        df[f'TEMP_RANGE_MM_{window}'] = df['TEMP_RANGE'].rolling(window=window).mean()
+    if casesonly:
+        for window in windows:
+            df[f'CASES_MM_{window}'] = df['CASES'].rolling(window=window).mean()
+            df[f'CASES_ACC_{window}'] = df['CASES'].rolling(window=window).sum()
 
-    for lag in range(1, 7):
-        df[f'CASES_LAG_{lag}'] = df['CASES'].shift(lag)
+        for lag in range(1, 7):
+            df[f'CASES_LAG_{lag}'] = df['CASES'].shift(lag)    
+    else:
+        df['IDEAL_TEMP'] = df['TEM_AVG'].apply(lambda x: 1 if 21 <= x <= 27 else 0)
+        df['EXTREME_TEMP'] = df['TEM_AVG'].apply(lambda x: 1 if x <= 14 or x >= 38 else 0)
+        df['SIGNIFICANT_RAIN'] = df['RAIN'].apply(lambda x: 1 if 0.010 <= x < 0.150 else 0)
+        df['EXTREME_RAIN'] = df['RAIN'].apply(lambda x: 1 if x >= 0.150 else 0)
+        df['TEMP_RANGE'] = df['TEM_MAX'] - df['TEM_MIN']
+        df['WEEK_OF_YEAR'] = df['DT_NOTIFIC'].dt.isocalendar().week
+
+        for window in windows:
+            df[f'TEM_AVG_MM_{window}'] = df['TEM_AVG'].rolling(window=window).mean()
+            df[f'CASES_MM_{window}'] = df['CASES'].rolling(window=window).mean()
+            df[f'CASES_ACC_{window}'] = df['CASES'].rolling(window=window).sum()
+            df[f'RAIN_ACC_{window}'] = df['RAIN'].rolling(window=window).sum()
+            df[f'RAIN_MM_{window}'] = df['RAIN'].rolling(window=window).mean()
+            df[f'RH_MM_{window}'] = df['RH_AVG'].rolling(window=window).mean()
+            df[f'TEMP_RANGE_MM_{window}'] = df['TEMP_RANGE'].rolling(window=window).mean()
+
+        for lag in range(1, 7):
+            df[f'CASES_LAG_{lag}'] = df['CASES'].shift(lag)
 
     df = df.drop(columns=[col for col in ['DT_NOTIFIC', 'LAT', 'LNG', 'ID_UNIDADE'] if col in df.columns])
     df.dropna(inplace=True)
@@ -119,7 +126,10 @@ def create_new_features(df: pd.DataFrame, subset: str = ""):
 
     feature_names = df.drop(columns=['CASES']).columns.tolist()
     feature_dict = pd.DataFrame({"Index": range(len(feature_names)), "Feature": feature_names})
-    feature_dict.to_csv("feature_dictionary.csv", index=False)
+    feature_dict_name = "feature_dictionary"
+    if(casesonly):
+        feature_dict_name = feature_dict_name + "_cases"
+    feature_dict.to_csv(f"{feature_dict_name}.csv", index=False)
 
     logging.info(f"{subset} — Tamanho total: {len(y)}, Zeros: {(y == 0).sum()}, Não-Zeros: {(y > 0).sum()}")
 
@@ -179,6 +189,7 @@ def build_dataset(id_unidade, sinan_path, cnes_path, era5_path, output_path, con
 
         sinan_df.drop(columns=['closest_LAT_ERA5', 'closest_LNG_ERA5'], inplace=True)
     else:
+        sinan_df = sinan_df.rename(columns={'DT_SEMANA': 'DT_NOTIFIC'})
         sinan_df.drop(columns=[col for col in ['LAT', 'LNG'] if col in sinan_df.columns], inplace=True)
 
     logging.info("Splitting data into train/val/test...")
@@ -190,11 +201,11 @@ def build_dataset(id_unidade, sinan_path, cnes_path, era5_path, output_path, con
     test_df = remaining_df[remaining_df['DT_NOTIFIC'] >= val_split_date].copy()
 
     logging.info("Creating additional features for train...")
-    X_train, y_train = create_new_features(train_df, "Train")
+    X_train, y_train = create_new_features(train_df, "Train", casesonly)
     logging.info("Creating additional features for val...")
-    X_val, y_val = create_new_features(val_df, "Val")
+    X_val, y_val = create_new_features(val_df, "Val", casesonly)
     logging.info("Creating additional features for test...")
-    X_test, y_test = create_new_features(test_df, "Test")
+    X_test, y_test = create_new_features(test_df, "Test", casesonly)
 
     logging.info("Scaling columns")
     scaler = StandardScaler()
@@ -223,6 +234,9 @@ def main():
     parser.add_argument("isweekly", help="Aggregate weekly values")
     parser.add_argument("casesonly", help="Use only case data")
     args = parser.parse_args()
+    
+    isweekly = args.isweekly.lower() == 'true'
+    casesonly = args.casesonly.lower() == 'true'
 
     build_dataset(
         id_unidade=args.id_unidade,
@@ -231,8 +245,8 @@ def main():
         era5_path=args.era5_path,
         output_path=args.output_path,
         config_path=args.config_path,
-        isweekly=args.isweekly,
-        casesonly=args.casesonly
+        isweekly=isweekly,
+        casesonly=casesonly
     )
 
 if __name__ == "__main__":
