@@ -1,7 +1,7 @@
 from xgboost import XGBClassifier, XGBRegressor, callback
 
 
-def get_xgb_poisson(seed):
+def get_xgb_poisson(seed=987):
     return XGBRegressor(
         n_estimators=300,
         max_depth=10,
@@ -13,7 +13,7 @@ def get_xgb_poisson(seed):
         callbacks=[callback.EarlyStopping(rounds=20)]
     )
     
-def get_xgb_clf(seed):
+def get_xgb_clf(seed=987):
     return XGBClassifier(
         objective="binary:logistic",
         eval_metric="logloss",

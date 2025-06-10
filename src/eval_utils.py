@@ -159,3 +159,20 @@ def save_feature_importance(name, model, X_train, outdir, feature_dictionary):
     plt.tight_layout()
     plt.savefig(os.path.join(outdir, f"feature_importance_{name.lower()}.png"))
     plt.close()    
+
+def optimize_threshold(prob_nonzero, y_pred_reg, y_true):
+    best_thresh = 0.5
+    best_score = float("inf")
+
+    for t in np.linspace(0.01, 0.5, 25):
+        y_zip = y_pred_reg * (prob_nonzero > t)
+        score = mean_squared_error(y_true, y_zip)
+        if score < best_score:
+            best_score = score
+            best_thresh = t
+            
+    return best_thresh
+
+def save_threshold(thresh, outdir):
+    with open(os.path.join(outdir, "best_threshold.txt"), "w") as f:
+        f.write(f"{thresh:.4f}")

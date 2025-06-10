@@ -39,13 +39,13 @@ $scripts_map = @{
 
 # === Modelos a treinar ===
 $models = @(
-    #"randomforest"
-    "xgboost_poisson"
+    "xgb_poisson"
+    "xgb_zip"
 )
 
 # === Seeds para replicabilidade ===
 #$seeds = @(0, 8, 109, 220, 222, 241, 149, 107, 75, 248)
-$seeds = @(0)
+$seeds = @(8)
 
 # === Garantir que os diretórios existem ===
 if (-not (Test-Path -Path $DATASET_DIR -PathType Container)) {
@@ -55,25 +55,29 @@ if (-not (Test-Path -Path $RESULTS_DIR -PathType Container)) {
     New-Item -Path $RESULTS_DIR -ItemType Directory -Force | Out-Null
 }
 
-#=== Construção dos datasets ===
-# Write-Host "📦 Construindo datasets..."
-# foreach ($dataset in $weekly_map.Keys) {
-#     $weekly = $weekly_map[$dataset]
-#     $script = $scripts_map[$dataset]
-#     $casesonly = $casesonly_map[$dataset]
-#     $out_path = Join-Path $DATASET_DIR "$dataset.pickle"
+$build_dataset = $false
 
-#     Write-Host "🔧 $dataset (weekly=$weekly, casesonly=$casesonly)"
-#     python src/build_dataset.py `
-#         FULL `
-#         "$SINAN_PATH" `
-#         "$CNES_PATH" `
-#         "$ERA5_PATH" `
-#         "$out_path" `
-#         "$CONFIG_PATH" `
-#         "$weekly" `
-#         "$casesonly"
-# }
+#=== Construção dos datasets ===
+if ($build_dataset) {
+    Write-Host "📦 Construindo datasets..."
+    foreach ($dataset in $weekly_map.Keys) {
+        $weekly = $weekly_map[$dataset]
+        $script = $scripts_map[$dataset]
+        $casesonly = $casesonly_map[$dataset]
+        $out_path = Join-Path $DATASET_DIR "$dataset.pickle"
+
+        Write-Host "🔧 $dataset (weekly=$weekly, casesonly=$casesonly)"
+        python src/build_dataset.py `
+            FULL `
+            "$SINAN_PATH" `
+            "$CNES_PATH" `
+            "$ERA5_PATH" `
+            "$out_path" `
+            "$CONFIG_PATH" `
+            "$weekly" `
+            "$casesonly"
+    }
+}
 
 # === Loop principal de treinamento ===
 Write-Host "🎯 Iniciando treinamentos..."
@@ -90,7 +94,7 @@ foreach ($seed in $seeds) {
             }
 
             if (Test-Path -Path $dataset_path) {
-                python src/train_xgb_poisson.py `
+                python "src/train_${model}.py" `
                     --dataset "$dataset_path" `
                     --outdir "$outdir" `
                     --seed "$seed" `
