@@ -1,0 +1,15 @@
+# experiments/experiments.yaml
+
+global:
+  trials_per_round: [50, 100, 150]
+  seed: 42
+
+experiments:
+  - dataset: data/datasets/RJ.pickle
+    models: [poisson, zip, rf]
+
+  - dataset: data/datasets/RJ_WEEKLY.pickle
+    models: [poisson, zip, rf]
+
+  - dataset: data/datasets/RJ_CASESONLY.pickle
+    models: [poisson, zip, rf]

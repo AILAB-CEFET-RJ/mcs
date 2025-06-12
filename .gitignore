@@ -7,7 +7,7 @@ results/
 tests/
 test/
 runs/
-src/optimization/__pycache__/config.cpython-311.pyc
+src/optimization/__pycache__/
 src/evaluation/__pycache__/
  __pycache__/
  *.pyc

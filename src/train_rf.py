@@ -6,9 +6,9 @@ import numpy as np
 from sklearn import clone
 
 from data_utils import load_data
-from src.evaluation.eval_utils import get_training_metrics, save_all_metrics, save_feature_importance
-from src.evaluation.plots import plot_learning_curve_external, plot_prediction_distribution
-from src.models.models import get_rf
+from evaluation.eval_utils import get_training_metrics, save_all_metrics, save_feature_importance
+from evaluation.plots import plot_learning_curve_external, plot_prediction_distribution
+from models.models import get_rf
 
 
 def train_and_evaluate(name, model, X_train, y_train, X_val, y_val, X_test, y_test, outdir, feature_dictionary):   

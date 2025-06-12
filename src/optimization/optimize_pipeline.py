@@ -6,10 +6,13 @@ import pickle
 import optuna
 import multiprocessing
 from datetime import datetime
+import sys
 
-from src.models.objective_functions import objective_poisson, objective_rf, objective_zip
-from src.optimization.config import N_TRIALS_DEFAULT, RUNS_DIR, SEED
-from src.utils.utils import save_study_results, seed_everything, setup_logging
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from models.objective_functions import objective_poisson, objective_rf, objective_zip
+from optimization.config import N_TRIALS_DEFAULT, RUNS_DIR, SEED
+from utils.utils import save_study_results, seed_everything, setup_logging
 
 # Função principal de execução de um único experimento
 def run_single_optimization(dataset_path, model_type, trials):

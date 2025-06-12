@@ -34,21 +34,38 @@ def seed_everything(seed):
 
 # Salvar resultados de forma padronizada
 
+# Salvamento completo dos resultados de estudo
 def save_study_results(study, output_dir):
     os.makedirs(output_dir, exist_ok=True)
 
     # Salva melhor trial
     pd.Series(study.best_trial.params).to_json(os.path.join(output_dir, "best_params.json"), indent=4)
 
-    # Salva todos os trials com métricas
-    df = study.trials_dataframe(attrs=("number", "value", "params", "user_attrs"))
+    # Salva todos os trials com parâmetros e métricas completas
+    all_data = []
+
+    for t in study.trials:
+        row = {"trial": t.number, "value": t.value}
+
+        # Parametros
+        for k, v in t.params.items():
+            row[f"param_{k}"] = v
+
+        # Métricas customizadas (user_attrs)
+        if "metrics" in t.user_attrs:
+            for k, v in t.user_attrs["metrics"].items():
+                row[f"metric_{k}"] = v
+
+        all_data.append(row)
+
+    df = pd.DataFrame(all_data)
     df.to_csv(os.path.join(output_dir, "trials.csv"), index=False)
 
-    # Plots opcionais
+    # Plots (opcionais)
     try:
         plot_optimization_history(study).write_html(os.path.join(output_dir, "opt_history.html"))
         plot_param_importances(study).write_html(os.path.join(output_dir, "opt_importance.html"))
     except Exception as e:
         logging.warning(f"Falha ao gerar visualizações: {e}")
 
-    logging.info(f"Resultados salvos em {output_dir}")
+    logging.info(f"Resultados completos salvos em {output_dir}")
