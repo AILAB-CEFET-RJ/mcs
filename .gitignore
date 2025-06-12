@@ -1,6 +1,6 @@
 .vscode/
 data/
-models/
+# models/
 reports/
 backup/
 results/
