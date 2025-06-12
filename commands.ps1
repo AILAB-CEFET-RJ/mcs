@@ -6,7 +6,7 @@ $CNES_PATH = "data/processed/cnes/STRJ2401.parquet"
 $CONFIG_PATH = "config/config.yaml"
 $DATASET_DIR = "data/datasets"
 $ERA5_PATH= "data/raw/era5/RJ_1997_2024.nc"
-$RESULTS_DIR = "test_unoptmized"
+$RESULTS_DIR = "models/unoptmized"
 
 # === Lista de nomes dos datasets ===
 $weekly_map = @{
@@ -40,13 +40,12 @@ $scripts_map = @{
 # === Modelos a treinar ===
 $models = @(
     "rf"
-    # "xgb_poisson"
-    # "xgb_zip"
+    "xgb_poisson"
+    "xgb_zip"
 )
 
 # === Seeds para replicabilidade ===
-#$seeds = @(0, 8, 109, 220, 222, 241, 149, 107, 75, 248)
-$seeds = @(8)
+$seeds = @(0, 8, 109, 220, 222, 241, 149, 107, 75, 248)
 
 # === Garantir que os diretórios existem ===
 if (-not (Test-Path -Path $DATASET_DIR -PathType Container)) {

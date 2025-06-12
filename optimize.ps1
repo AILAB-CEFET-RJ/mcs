@@ -1,6 +1,6 @@
 # === Caminhos principais ===
 $DATASET_DIR = "data/datasets"
-$OPTUNA_PIPELINE = "src/optmization/optmize_pipeline.py"
+$OPTUNA_PIPELINE = "src/optimization/optimize_pipeline.py"
 $RESULTS_DIR = "runs"
 
 # === Lista de nomes dos datasets ===

@@ -5,8 +5,11 @@ import joblib
 import numpy as np
 
 from data_utils import load_data
-from eval_utils import get_training_metrics, plot_prediction_distribution, plot_learning_curve, save_feature_importance, save_all_metrics
-from models import get_xgb_poisson
+from legacy.atmoseer.train_regressor import plot_learning_curve
+from src.evaluation.eval_utils import get_training_metrics, save_all_metrics, save_feature_importance
+from src.evaluation.plots import plot_prediction_distribution
+from src.models.models import get_xgb_poisson
+
 
 def train_and_evaluate(name, model, X_train, y_train, X_val, y_val, X_test, y_test, outdir, feature_dictionary):   
     

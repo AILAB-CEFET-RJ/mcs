@@ -3,13 +3,13 @@
 import argparse
 import os
 import pickle
-import numpy as np
 import optuna
 import multiprocessing
 from datetime import datetime
-from config import N_TRIALS_DEFAULT, RUNS_DIR, SEED
-from models import objective_poisson, objective_zip, objective_rf
-from utils import setup_logging, seed_everything, save_study_results
+
+from src.models.objective_functions import objective_poisson, objective_rf, objective_zip
+from src.optimization.config import N_TRIALS_DEFAULT, RUNS_DIR, SEED
+from src.utils.utils import save_study_results, seed_everything, setup_logging
 
 # Função principal de execução de um único experimento
 def run_single_optimization(dataset_path, model_type, trials):
@@ -27,7 +27,7 @@ def run_single_optimization(dataset_path, model_type, trials):
     X_train = X_train.reshape(X_train.shape[0], -1)
     X_val = X_val.reshape(X_val.shape[0], -1)
 
-    study = optuna.create_study(direction="minimize", storage=storage)
+    study = optuna.create_study(direction="minimize", storage=storage, study_name=study_name)
 
     if model_type == "poisson":
         study.optimize(lambda trial: objective_poisson(trial, X_train, y_train, X_val, y_val), n_trials=trials)

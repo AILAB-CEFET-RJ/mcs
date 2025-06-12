@@ -2,10 +2,7 @@
 
 import os
 import pandas as pd
-import numpy as np
 import logging
-import random
-import optuna
 from optuna.visualization import plot_optimization_history, plot_param_importances
 
 # Setup global logger
@@ -39,9 +36,15 @@ def seed_everything(seed):
 
 def save_study_results(study, output_dir):
     os.makedirs(output_dir, exist_ok=True)
-    pd.Series(study.best_trial.params).to_json(os.path.join(output_dir, "best_params.json"), indent=4)
-    study.trials_dataframe().to_csv(os.path.join(output_dir, "trials.csv"), index=False)
 
+    # Salva melhor trial
+    pd.Series(study.best_trial.params).to_json(os.path.join(output_dir, "best_params.json"), indent=4)
+
+    # Salva todos os trials com métricas
+    df = study.trials_dataframe(attrs=("number", "value", "params", "user_attrs"))
+    df.to_csv(os.path.join(output_dir, "trials.csv"), index=False)
+
+    # Plots opcionais
     try:
         plot_optimization_history(study).write_html(os.path.join(output_dir, "opt_history.html"))
         plot_param_importances(study).write_html(os.path.join(output_dir, "opt_importance.html"))

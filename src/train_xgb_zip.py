@@ -5,16 +5,10 @@ import joblib
 import numpy as np
 
 from data_utils import load_data
-from models import get_xgb_clf, get_xgb_poisson
-from eval_utils import (
-    get_training_metrics,
-    plot_learning_curve,
-    plot_prediction_distribution,
-    save_feature_importance,
-    save_all_metrics,
-    optimize_threshold,
-    save_threshold,
-)
+from legacy.atmoseer.train_regressor import plot_learning_curve
+from src.evaluation.eval_utils import get_training_metrics, optimize_threshold, save_all_metrics, save_feature_importance, save_threshold
+from src.evaluation.plots import plot_prediction_distribution
+from src.models.models import get_xgb_clf, get_xgb_poisson
 
 def train_and_evaluate_zip(name, clf, reg, X_train, y_train, X_val, y_val, X_test, y_test, outdir, feature_dict):
 
