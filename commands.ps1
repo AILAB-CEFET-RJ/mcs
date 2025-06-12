@@ -39,8 +39,9 @@ $scripts_map = @{
 
 # === Modelos a treinar ===
 $models = @(
-    "xgb_poisson"
-    "xgb_zip"
+    "rf"
+    # "xgb_poisson"
+    # "xgb_zip"
 )
 
 # === Seeds para replicabilidade ===

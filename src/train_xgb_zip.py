@@ -4,7 +4,7 @@ import time
 import joblib
 import numpy as np
 
-from data_utils import load_data_for_xgb
+from data_utils import load_data
 from models import get_xgb_clf, get_xgb_poisson
 from eval_utils import (
     get_training_metrics,
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     reg = get_xgb_poisson(seed)
 
     print("📥 Carregando dados...")
-    X_train, y_train, X_val, y_val, X_test, y_test = load_data_for_xgb(args.dataset)
+    X_train, y_train, X_val, y_val, X_test, y_test = load_data(args.dataset)
 
     clf, reg, y_pred = train_and_evaluate_zip(
         "XGBOOST-ZIP",

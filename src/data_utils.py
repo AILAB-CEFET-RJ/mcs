@@ -1,6 +1,6 @@
 import pickle
 
-def load_data_for_xgb(file_path: str):
+def load_data(file_path: str):
     with open(file_path, "rb") as file:
         (X_train, y_train, X_val, y_val, X_test, y_test) = pickle.load(file)
 
