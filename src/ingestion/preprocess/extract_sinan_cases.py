@@ -3,7 +3,7 @@ import argparse
 import pandas as pd
 import os
 
-def extract_sinan_cases(cnes_id, cod_uf, input_path, output_path, filled, start_date=None, end_date=None):
+def extract_sinan_cases(cnes_id, cod_uf, cod_ibge, input_path, output_path, filled, start_date=None, end_date=None):
     """
     Extract cases from a SINAN parquet file
 
@@ -18,6 +18,8 @@ def extract_sinan_cases(cnes_id, cod_uf, input_path, output_path, filled, start_
             df = df[df["ID_UNIDADE"] == cnes_id]
         if cod_uf is not None:
             df = df[df["SG_UF"] == cod_uf]
+        if cod_ibge is not None:
+            df = df[df["ID_MUNICIP"] == cod_ibge]
 
         grouped_df = df.groupby(["ID_UNIDADE", "DT_NOTIFIC"])
         aggregated_df = grouped_df.size().reset_index(name="CASES")
@@ -61,6 +63,7 @@ def main():
     parser.add_argument("output_path", help="Path to the output Parquet file")
     parser.add_argument("--cnes_id", dest="cnes_id", help="CNES number", default=None)
     parser.add_argument("--cod_uf", dest="cod_uf", help="UF code of the cases", default=None)
+    parser.add_argument("--cod_ibge", dest="cod_ibge", help="IBGE code of the cases", default=None)
     parser.add_argument("--filled", dest="filled", type=bool, nargs='?', const=True, default=False, help="Set if the output will be filled with dates")
     parser.add_argument("--start_date", dest="start_date", help="Start fill date in yyyymmdd format", default=None)
     parser.add_argument("--end_date", dest="end_date", help="End fill date in yyyymmdd format", default=None)
@@ -73,7 +76,7 @@ def main():
     if args.output_path is None:
         args.output_path = args.input_path
 
-    extract_sinan_cases(args.cnes_id, args.cod_uf, args.input_path, args.output_path, args.filled, args.start_date, args.end_date)
+    extract_sinan_cases(args.cnes_id, args.cod_uf, args.cod_ibge, args.input_path, args.output_path, args.filled, args.start_date, args.end_date)
 
 if __name__ == "__main__":
     main()

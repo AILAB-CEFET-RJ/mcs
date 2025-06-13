@@ -9,6 +9,7 @@ test/
 runs/
 src/optimization/__pycache__/
 src/evaluation/__pycache__/
+src/ingestion/download/__pycache__/
  __pycache__/
  *.pyc
 

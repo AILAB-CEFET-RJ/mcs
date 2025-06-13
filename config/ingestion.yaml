@@ -1,0 +1,24 @@
+# config/ingestion.yaml
+
+sinan:
+  cnes_id: "None"
+  cod_uf: 33
+  cod_ibge: 3304557
+  disease: "DENG"
+  years: 
+    - 2013
+    - 2014
+    - 2015
+    - 2016
+    - 2017
+    - 2018
+    - 2019
+    - 2020
+    - 2021
+    - 2022
+    - 2023
+
+cnes:
+  state_code: "RJ"
+  file_code: "2401"
+  tipo: "ST"
