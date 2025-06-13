@@ -25,7 +25,7 @@ def get_lat_lng(cep):
         return lat, lng
     return None, None
 
-def cnes_preprocess(parquet_path, output_path):
+def preprocess_cnes(parquet_path, output_path):
     """
     Process a CNES ST parquet file
 
@@ -66,7 +66,7 @@ def main():
     if args.output_path is None:
         args.output_path = args.parquet_path
     
-    cnes_preprocess(args.parquet_path, args.output_path)  
+    preprocess_cnes(args.parquet_path, args.output_path)  
 
 if __name__ == "__main__":
     main()

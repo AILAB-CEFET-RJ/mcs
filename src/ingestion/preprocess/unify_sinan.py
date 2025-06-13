@@ -15,7 +15,7 @@ def extract_year_from_filename(filename):
         return 2000 + year if year >= 0 else None
     return None
 
-def sinan_preprocess(input_path, output_path):
+def unify_sinan(input_path, output_path):
     dfs = []
     os.makedirs(output_path, exist_ok=True)
     
@@ -75,7 +75,7 @@ def main():
     
     logging.basicConfig(level=getattr(logging, args.log_level), format="%(asctime)s - %(levelname)s - %(message)s")
 
-    sinan_preprocess(args.input_path, args.output_path)
+    unify_sinan(args.input_path, args.output_path)
 
 if __name__ == "__main__":
     main()
