@@ -36,7 +36,7 @@ src/goes16/__pycache__/
 tests/__pycache__/
 *.out
 *.gif
-*.png
+#*.png
 *.nc
 *.parquet
 src/spatiotemporal_builder/__pycache__/__init__.cpython-310.pyc
