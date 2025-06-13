@@ -3,6 +3,8 @@
 import sys
 import os
 
+from data.data_utils import load_data
+
 # Ajuste de sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -17,16 +19,6 @@ from optimization.space_refiner import refine_space
 from utils.utils import setup_logging, seed_everything, save_study_results
 from optimization.config import SEED, RUNS_DIR
 
-# Carrega dataset no formato padrão
-def load_data(dataset_path):
-    with open(dataset_path, "rb") as f:
-        X_train, y_train, X_val, y_val, _, _ = pickle.load(f)
-
-    X_train = X_train.reshape(X_train.shape[0], -1)
-    X_val = X_val.reshape(X_val.shape[0], -1)
-
-    return X_train, y_train, X_val, y_val
-
 # Rodada única de otimização
 def run_single_round(dataset_path, model_type, trials, round_id, search_space):
 
@@ -38,7 +30,7 @@ def run_single_round(dataset_path, model_type, trials, round_id, search_space):
     os.makedirs(output_dir, exist_ok=True)
     storage = f"sqlite:///{os.path.join(output_dir, 'study.db')}"
 
-    X_train, y_train, X_val, y_val = load_data(dataset_path)
+    X_train, y_train, X_val, y_val, X_test, y_test = load_data(dataset_path)
 
     study = optuna.create_study(direction="minimize", storage=storage, study_name=study_name)
 

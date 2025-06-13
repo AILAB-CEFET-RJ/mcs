@@ -1,6 +1,6 @@
 .vscode/
 data/
-# models/
+models/__pycache__/
 reports/
 backup/
 results/
