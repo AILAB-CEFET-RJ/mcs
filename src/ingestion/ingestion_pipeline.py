@@ -59,23 +59,27 @@ def process_sinan_step(config):
     unify_sinan(os.path.join(RAW_DIR, "sinan"), os.path.join(PROCESSED_DIR, "sinan"))
     
     cnes_id = None 
+    file_name = config['sinan']['disease']
     if str(config["sinan"]["cnes_id"]) != "None":
         cnes_id = str(config["sinan"]["cnes_id"]) 
+        file_name += cnes_id
         
     cod_uf = None 
     if str(config["sinan"]["cod_uf"]) != "None":
         cod_uf = str(config["sinan"]["cod_uf"]) 
+        file_name += cod_uf
         
     cod_ibge = None 
     if str(config["sinan"]["cod_ibge"]) != "None":
-        cod_ibge = str(config["sinan"]["cod_ibge"])                 
+        cod_ibge = str(config["sinan"]["cod_ibge"])
+        file_name += cod_ibge
     
     extract_sinan_cases(
         cnes_id=cnes_id,
         cod_uf=cod_uf,
         cod_ibge=cod_ibge,
         input_path=os.path.join(PROCESSED_DIR, "sinan", "concat.parquet"),
-        output_path=os.path.join(PROCESSED_DIR, "sinan", f"{config['sinan']['disease']}.parquet"),
+        output_path=os.path.join(PROCESSED_DIR, "sinan", f"{file_name}.parquet"),
         filled=False
     )
 
@@ -87,12 +91,19 @@ if __name__ == "__main__":
     parser.add_argument("--process-cnes", action="store_true", help="Processamento CNES")
     parser.add_argument("--download-sinan", action="store_true", help="Download SINAN")
     parser.add_argument("--process-sinan", action="store_true", help="Processamento SINAN")
+    parser.add_argument("--full-run", action="store_true", help="Tudo")    
 
     parser.add_argument("--log", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     args = parser.parse_args()
 
     logging.basicConfig(level=getattr(logging, args.log), format="%(asctime)s - %(levelname)s - %(message)s")
     config = load_config(args.config)
+    
+    if args.full_run:
+        download_cnes_step(config)
+        process_cnes_step(config)
+        download_sinan_step(config)
+        process_sinan_step(config)
 
     if args.download_cnes:
         download_cnes_step(config)
@@ -105,3 +116,4 @@ if __name__ == "__main__":
 
     if args.process_sinan:
         process_sinan_step(config)
+        

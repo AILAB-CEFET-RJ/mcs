@@ -7,66 +7,88 @@ import time
 from tqdm.auto import tqdm
 
 
-def get_lat_lng(cep):      
+def get_lat_lng_osm(address, delay=1.0, retries=3):
     """
-    Gets latitude and longitude for a givem cep
-
+    Geocodifica um endereço usando o Nominatim (OpenStreetMap).
+    
     Args:
-    cep: str, numbers only cep
+        address (str): Endereço completo (ou CEP)
+        delay (float): Delay entre as requisições
+        retries (int): Número de tentativas
 
-    """    
-    time.sleep(1)
-    url = f"https://cep.awesomeapi.com.br/json/{cep}"
-    response = requests.get(url)
-    if response.status_code == 200:
-        data = response.json()
-        lat = data.get('lat', 'Default value if not found')
-        lng = data.get('lng', 'Default value if not found')
-        return lat, lng
+    Returns:
+        tuple: (latitude, longitude) ou (None, None)
+    """
+    url = "https://nominatim.openstreetmap.org/search"
+    headers = {'User-Agent': 'Arboseer-Geocoder (academic research project)'}
+
+    params = {
+        'q': address,
+        'format': 'json',
+        'addressdetails': 1,
+        'limit': 1
+    }
+
+    for attempt in range(retries):
+        try:
+            time.sleep(delay)
+            response = requests.get(url, headers=headers, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            if data:
+                lat = float(data[0]['lat'])
+                lon = float(data[0]['lon'])
+                return lat, lon
+            else:
+                return None, None
+        except Exception as e:
+            logging.warning(f"Tentativa {attempt+1} falhou para endereço {address}: {e}")
+
     return None, None
+
 
 def preprocess_cnes(parquet_path, output_path):
     """
-    Process a CNES ST parquet file
-
-    Args:
-    parquet_path: str, Parquet file path
-    output_path: str, Destination path
-
-    """        
+    Processa o arquivo CNES Parquet, adicionando latitude e longitude via OSM Nominatim.
+    """
     try:
+        logging.info(f"Lendo arquivo: {parquet_path}")
         df = pd.read_parquet(parquet_path)
 
-        tqdm.pandas(desc="Processing Rows", total=df.shape[0])
-        
-        df[['LAT', 'LNG']] = df.progress_apply(lambda row: get_lat_lng(row['COD_CEP']), axis=1, result_type='expand')        
-        df = df[['CNES', 'COD_CEP', 'LAT', 'LNG']]
+        if 'COD_CEP' not in df.columns:
+            raise ValueError("A coluna 'COD_CEP' não existe no arquivo de entrada.")
 
-        directory = os.path.dirname(output_path)
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-            logging.info(f"Created directory: {directory}")
+        tqdm.pandas(desc="Geocodificando")
 
-        df.to_parquet(output_path)
+        # Como o Nominatim aceita endereço textual, podemos usar o CEP como string para tentar geocodificar
+        df[['LAT', 'LNG']] = df['COD_CEP'].progress_apply(
+            lambda cep: get_lat_lng_osm(f"{cep} Brasil") if pd.notnull(cep) else (None, None)
+        ).apply(pd.Series)
 
-        logging.info(f"Dataset processed at: {output_path}")    
+        df_final = df[['CNES', 'COD_CEP', 'LAT', 'LNG']]
+
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        df_final.to_parquet(output_path)
+
+        logging.info(f"Arquivo processado e salvo em: {output_path}")
     except Exception as e:
-        logging.error(f"Erro processing dataset: {e}")    
- 
+        logging.error(f"Erro durante o processamento: {e}")
+        raise
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Append lat/long to CNES Estabelecimentos parquet file")
+    parser = argparse.ArgumentParser(description="Append lat/lng to CNES Parquet file using OpenStreetMap Nominatim API")
     parser.add_argument("parquet_path", help="Path to the input Parquet file")
-    parser.add_argument("output_path", help="Path to the output Parquet file")    
-    parser.add_argument("--log", dest="log_level", choices=["INFO", "DEBUG", "ERROR"], default="INFO", help="Set the logging level")
+    parser.add_argument("output_path", help="Path to the output Parquet file")
+    parser.add_argument("--log", dest="log_level", choices=["INFO", "DEBUG", "ERROR"], default="INFO", help="Logging level")
 
-    args = parser.parse_args()    
+    args = parser.parse_args()
 
-    logging.basicConfig(level=getattr(logging, args.log_level), format="%(asctime)s - %(levelname)s - %(message)s")   
-    
-    if args.output_path is None:
-        args.output_path = args.parquet_path
-    
-    preprocess_cnes(args.parquet_path, args.output_path)  
+    logging.basicConfig(level=getattr(logging, args.log_level), format="%(asctime)s - %(levelname)s - %(message)s")
+
+    preprocess_cnes(args.parquet_path, args.output_path)
+
 
 if __name__ == "__main__":
     main()

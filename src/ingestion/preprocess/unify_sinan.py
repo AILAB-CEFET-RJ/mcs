@@ -19,7 +19,7 @@ def unify_sinan(input_path, output_path):
     dfs = []
     os.makedirs(output_path, exist_ok=True)
     
-    files = [f for f in os.listdir(input_path) if os.path.isfile(os.path.join(input_path, f))]
+    files = sorted([f for f in os.listdir(input_path) if os.path.isfile(os.path.join(input_path, f))])
 
     for file in files:
         logging.info(f"Processing: {file}")
@@ -62,6 +62,7 @@ def unify_sinan(input_path, output_path):
     # Save to Parquet
     output_file = os.path.join(output_path, 'concat.parquet')  # TODO: Move file name to args
     df_concat.to_parquet(output_file)
+    df_concat.to_csv('unify.csv')
 
     logging.info(f"Saved concatenated SINAN file at: {output_file}")
 
