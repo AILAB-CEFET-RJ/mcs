@@ -1,9 +1,9 @@
 # src/optimization/adaptive_spaces.py
 
-# Espaços iniciais de busca (fixos para cada modelo)
-# Formatados como dicionário {param_name: (lower, upper)}
+import numpy as np
 
-# Espaço inicial Poisson puro
+# Espaços iniciais (hardcoded para cada modelo)
+
 initial_poisson_space = {
     "n_estimators": (100, 1000),
     "learning_rate": (0.01, 0.2),
@@ -15,7 +15,6 @@ initial_poisson_space = {
     "model_seed": (1, 10**6)
 }
 
-# Espaço inicial ZIP
 initial_zip_space = {
     "clf_n_estimators": (50, 1000),
     "clf_learning_rate": (0.01, 0.2),
@@ -30,28 +29,27 @@ initial_zip_space = {
     "reg_colsample": (0.5, 1.0),
     "reg_alpha": (1e-8, 10.0),
     "reg_lambda": (1e-8, 10.0),
-    "reg_model_seed": (1, 10**6),
-    "threshold": (0.01, 0.5)
+    "reg_model_seed": (1, 10**6)
 }
 
-# Espaço inicial RandomForest
 initial_rf_space = {
     "n_estimators": (100, 500),
     "max_depth": (3, 30),
     "min_samples_split": (2, 10),
     "min_samples_leaf": (1, 10),
-    "max_features": (0, 2),  # codificado para categorical index
-    "bootstrap": (0, 1),     # codificado para categorical index
+    "max_features": (0, 2),  # categorical encoded
+    "bootstrap": (0, 1),     # categorical encoded
     "model_seed": (1, 10**6)
 }
 
-# Mapping para decodificação dos categóricos (interno)
+# Mapeamentos dos categóricos
 rf_categorical_mappings = {
     "max_features": ["sqrt", "log2", None],
     "bootstrap": [True, False]
 }
 
-# Função de sugestão dinâmica de hiperparâmetros adaptada para o novo espaço refinável
+# Sugestores dinâmicos para Optuna (compatíveis com espaço refinável)
+
 def suggest_poisson(trial, space):
     return {
         "n_estimators": trial.suggest_int("n_estimators", *space["n_estimators"]),
@@ -79,22 +77,16 @@ def suggest_zip(trial, space):
         "reg_colsample": trial.suggest_float("reg_colsample", *space["reg_colsample"]),
         "reg_alpha": trial.suggest_float("reg_alpha", *space["reg_alpha"], log=True),
         "reg_lambda": trial.suggest_float("reg_lambda", *space["reg_lambda"], log=True),
-        "reg_model_seed": trial.suggest_int("reg_model_seed", *space["reg_model_seed"]),
-        "threshold": trial.suggest_float("threshold", *space["threshold"])
+        "reg_model_seed": trial.suggest_int("reg_model_seed", *space["reg_model_seed"])
     }
 
-# Sugestão dinâmica para RF
 def suggest_rf(trial, space):
     return {
         "n_estimators": trial.suggest_int("n_estimators", *space["n_estimators"]),
         "max_depth": trial.suggest_int("max_depth", *space["max_depth"]),
         "min_samples_split": trial.suggest_int("min_samples_split", *space["min_samples_split"]),
         "min_samples_leaf": trial.suggest_int("min_samples_leaf", *space["min_samples_leaf"]),
-        "max_features": rf_categorical_mappings["max_features"][
-            trial.suggest_int("max_features", *space["max_features"])
-        ],
-        "bootstrap": rf_categorical_mappings["bootstrap"][
-            trial.suggest_int("bootstrap", *space["bootstrap"])
-        ],
+        "max_features": rf_categorical_mappings["max_features"][trial.suggest_int("max_features", *space["max_features"])],
+        "bootstrap": rf_categorical_mappings["bootstrap"][trial.suggest_int("bootstrap", *space["bootstrap"])],
         "model_seed": trial.suggest_int("model_seed", *space["model_seed"])
     }

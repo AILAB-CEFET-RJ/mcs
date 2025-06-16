@@ -1,8 +1,22 @@
 # experiments/experiments.yaml
 
 global:
-  trials_per_round: [50, 100, 150]
   seed: 42
+  use_fixed_seed: false
+  n_jobs_xgb: 8
+  early_stopping_rounds: 20
+  runs_dir: "runs"
+  trials_per_round: [50, 100, 150]
+
+  directions:
+    - minimize  # MSE
+    - minimize  # RMSE
+    - minimize  # MAE
+    - minimize  # -R²
+    - minimize  # MAPE
+    - minimize  # SMAPE
+    - minimize  # -Rho
+    - minimize  # Poisson Deviance
 
 experiments:
   - dataset: data/datasets/RJ.pickle
@@ -12,4 +26,7 @@ experiments:
     models: [poisson, zip, rf]
 
   - dataset: data/datasets/RJ_CASESONLY.pickle
+    models: [poisson, zip, rf]
+
+  - dataset: data/datasets/RJ_WEEKLY_CASESONLY.pickle
     models: [poisson, zip, rf]

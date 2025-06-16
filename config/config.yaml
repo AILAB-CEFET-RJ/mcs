@@ -1,5 +1,33 @@
-target: CASES
+dataset:
+  weekly: true
+
 preproc:
-  SLIDING_WINDOW_SIZE : 7
-  TRAIN_SPLIT: '2022-01-01'
-  VAL_SPLIT: '2023-01-01'
+  SLIDING_WINDOW_SIZE: 7
+  TRAIN_SPLIT: 2018-01-01
+  VAL_SPLIT: 2019-01-01
+
+features:
+  enable:
+    cases_windows: true
+    cases_accumulators: true
+    cases_lags: true
+
+    ideal_temp: true
+    extreme_temp: true
+    significant_rain: true
+    extreme_rain: true
+    temp_range: true
+    week_of_year: true
+    windows: true
+    lags: true
+
+  windows: [7, 14, 21, 28]
+  lags: 6
+
+  temp:
+    ideal_temp_range: [21, 27]
+    extreme_temp_range: [14, 38]
+
+  rain:
+    significant_range: [0.010, 0.150]
+    extreme_threshold: 0.150

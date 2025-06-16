@@ -2,45 +2,52 @@
 
 import numpy as np
 
-# Função de refinamento adaptativo do espaço de busca
-def refine_space(study, old_space, expand_ratio=1.3, shrink_percentile=20):
+def refine_space(study, old_space, shrink_factor=0.3, expand_ratio=1.3, boundary_trigger=0.95, min_shrink=0.05):
     """
-    Refina dinamicamente o espaço de busca a partir do histórico de trials.
+    Refina dinamicamente o espaço de busca baseado nos trials já concluídos.
+    
+    Combina shrink dinâmico (centrado na mediana) com expansão de fronteira superior.
     """
     new_space = {}
 
-    # Obtem apenas trials bem sucedidos
-    trials = [t for t in study.trials if t.state == 'COMPLETE']
+    trials_df = study.trials_dataframe(attrs=("params", "value", "state"))
+    trials_df = trials_df[trials_df["state"] == "COMPLETE"]
 
     for param_name in old_space.keys():
-        values = np.array([
-            t.params[param_name] for t in trials 
-            if param_name in t.params
-        ])
-
-        if len(values) == 0:
-            # Parâmetro ainda não foi sugerido
+        if f"params_{param_name}" not in trials_df.columns:
             new_space[param_name] = old_space[param_name]
             continue
 
-        low, high = old_space[param_name]
+        values = trials_df[f"params_{param_name}"].dropna().astype(float).values
 
-        # Detecção de boundary superior
-        boundary_expand = False
-        if np.max(values) >= high * 0.95:
-            boundary_expand = True
+        if len(values) == 0:
+            new_space[param_name] = old_space[param_name]
+            continue
 
-        # Refinar limites inferior e superior
-        refined_low = max(low, np.percentile(values, shrink_percentile))
-        refined_high = min(high, np.percentile(values, 100 - shrink_percentile))
+        old_low, old_high = old_space[param_name]
 
-        if boundary_expand:
-            refined_high = int(high * expand_ratio)
+        median_val = np.median(values)
+        shrink_amount = (old_high - old_low) * shrink_factor
 
-        # Garantir que não encolha demais
-        if refined_high - refined_low < 2:
-            refined_low, refined_high = low, high
+        new_low = max(old_low, median_val - shrink_amount)
+        new_high = min(old_high, median_val + shrink_amount)
 
-        new_space[param_name] = (int(refined_low), int(refined_high))
+        # Segurança mínima de shrink
+        if (new_high - new_low) < (old_high - old_low) * min_shrink:
+            new_low, new_high = old_low, old_high
+
+        # Detector de boundary superior (expansão adaptativa)
+        if np.max(values) >= old_high * boundary_trigger:
+            new_high = old_high * expand_ratio
+
+        # Segurança total: manter range válido
+        if new_low >= new_high:
+            new_low, new_high = old_low, old_high
+
+        # Cast inteligente para int/float
+        if isinstance(old_low, int) and isinstance(old_high, int):
+            new_space[param_name] = (int(new_low), int(new_high))
+        else:
+            new_space[param_name] = (float(new_low), float(new_high))
 
     return new_space
