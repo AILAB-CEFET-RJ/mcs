@@ -25,35 +25,49 @@ def find_nearest(lat, lon, tree, coords):
 
 
 # Leitura ERA5
-def extract_era5_data(ds, lat, lon, date, isweekly):
+def extract_era5_data(ds, lat, lon, date, config):
     ds_point = ds.sel(latitude=lat, longitude=lon, method='nearest')
-    if isweekly:
+    if config.weekly:
         week_start = pd.Timestamp(date)
         week_end = week_start + pd.Timedelta(days=6)
-        day_data = ds_point.sel(time=slice(f"{week_start}T00:00:00", f"{week_end}T23:00:00"))
+        day_data = ds_point.sel(time=slice(f"{week_start} 00:00:00", f"{week_end} 23:00:00"))
     else:
         date_str = pd.Timestamp(date).strftime('%Y-%m-%d')
-        day_data = ds_point.sel(time=slice(f"{date_str}T00:00:00", f"{date_str}T23:00:00"))
+        day_data = ds_point.sel(time=slice(f"{date_str} 00:00:00", f"{date_str} 23:00:00"))
 
     if day_data.time.size == 0:
         raise ValueError(f"No data for {date}")
 
-    tem_avg = day_data['t2m'].mean().item() - 273.15
-    tem_min = day_data['t2m'].min().item() - 273.15
-    tem_max = day_data['t2m'].max().item() - 273.15
-    rain = day_data['tp'].sum().item()
+    result = {}
 
-    t2m = day_data['t2m'].values
-    d2m = day_data['d2m'].values
+    raw_flags = config.features["enable"].get("raw_features", {})
 
-    def sat_vapor_pressure(temp):
-        return 6.112 * np.exp((17.67 * (temp - 273.15)) / (temp - 29.65))
+    if raw_flags.get("tem_avg", True):
+        result["TEM_AVG"] = day_data["t2m"].mean().item() - 273.15
+    if raw_flags.get("tem_min", True):
+        result["TEM_MIN"] = day_data["t2m"].min().item() - 273.15
+    if raw_flags.get("tem_max", True):
+        result["TEM_MAX"] = day_data["t2m"].max().item() - 273.15
+    if raw_flags.get("rain", True):
+        result["RAIN"] = day_data["tp"].sum().item()
 
-    rh = 100 * (sat_vapor_pressure(d2m) / sat_vapor_pressure(t2m))
-    rh_avg, rh_min, rh_max = np.mean(rh), np.min(rh), np.max(rh)
+    if any(raw_flags.get(k, False) for k in ["rh_avg", "rh_min", "rh_max"]):
+        t2m = day_data["t2m"].values
+        d2m = day_data["d2m"].values
 
-    return tem_avg, tem_min, tem_max, rain, rh_avg, rh_min, rh_max
+        def sat_vapor_pressure(temp):
+            return 6.112 * np.exp((17.67 * (temp - 273.15)) / (temp - 29.65))
 
+        rh = 100 * (sat_vapor_pressure(d2m) / sat_vapor_pressure(t2m))
+
+        if raw_flags.get("rh_avg", True):
+            result["RH_AVG"] = np.mean(rh)
+        if raw_flags.get("rh_min", False):
+            result["RH_MIN"] = np.min(rh)
+        if raw_flags.get("rh_max", False):
+            result["RH_MAX"] = np.max(rh)
+
+    return result
 
 # Processamento total
 def build_dataset(config_path, sinan_path, cnes_path, era5_path, output_path, id_unidade):
@@ -77,39 +91,42 @@ def build_dataset(config_path, sinan_path, cnes_path, era5_path, output_path, id
         sinan_df['DT_SEMANA'] = sinan_df['DT_NOTIFIC'].dt.to_period('W').apply(lambda r: r.start_time)
         sinan_df = sinan_df.groupby(['ID_UNIDADE', 'DT_SEMANA']).agg({'CASES': 'sum', 'LAT': 'first', 'LNG': 'first'}).reset_index()
 
-    if not config.casesonly:
-        era5_ds = xr.open_dataset(era5_path)
-        era5_lat = era5_ds.latitude.values
-        era5_lon = era5_ds.longitude.values
-        grid_coords = np.array([(lat, lon) for lat in era5_lat for lon in era5_lon])
-        era5_tree = cKDTree(grid_coords)
+    era5_ds = xr.open_dataset(era5_path)
+    era5_lat = era5_ds.latitude.values
+    era5_lon = era5_ds.longitude.values
+    grid_coords = np.array([(lat, lon) for lat in era5_lat for lon in era5_lon])
+    era5_tree = cKDTree(grid_coords)
 
-        sinan_coords = sinan_df[['LAT', 'LNG']].values
-        nearest_era5_coords = np.apply_along_axis(lambda x: find_nearest(x[0], x[1], era5_tree, pd.DataFrame(grid_coords, columns=['LAT', 'LNG']).values), 1, sinan_coords)
-        sinan_df['LAT_ERA5'], sinan_df['LNG_ERA5'] = nearest_era5_coords[:, 0], nearest_era5_coords[:, 1]
+    sinan_coords = sinan_df[['LAT', 'LNG']].values
+    nearest_era5_coords = np.apply_along_axis(lambda x: find_nearest(x[0], x[1], era5_tree, pd.DataFrame(grid_coords, columns=['LAT', 'LNG']).values), 1, sinan_coords)
+    sinan_df['LAT_ERA5'], sinan_df['LNG_ERA5'] = nearest_era5_coords[:, 0], nearest_era5_coords[:, 1]
 
-        era5_records = []
-        dt_col = 'DT_SEMANA' if config.weekly else 'DT_NOTIFIC'
-        unique_dates = sinan_df[[dt_col, 'LAT_ERA5', 'LNG_ERA5']].drop_duplicates()
+    era5_records = []
+    dt_col = 'DT_SEMANA' if config.weekly else 'DT_NOTIFIC'
+    unique_dates = sinan_df[[dt_col, 'LAT_ERA5', 'LNG_ERA5']].drop_duplicates()
 
-        for _, row in tqdm(unique_dates.iterrows(), total=len(unique_dates), desc="ERA5 extraction"):
-            date = row[dt_col]
-            lat, lon = row['LAT_ERA5'], row['LNG_ERA5']
-            try:
-                vals = extract_era5_data(era5_ds, lat, lon, date, config.weekly)
-                era5_records.append([date, lat, lon, *vals])
-            except ValueError:
-                continue
+    for _, row in tqdm(unique_dates.iterrows(), total=len(unique_dates), desc="ERA5 extraction"):
+        date = row[dt_col]
+        lat, lon = row['LAT_ERA5'], row['LNG_ERA5']
+        try:
+            vals = extract_era5_data(era5_ds, lat, lon, date, config)
+            era5_records.append([date, lat, lon, *vals.values()])
+        except ValueError:
+            continue
 
-        era5_df = pd.DataFrame(era5_records, columns=[dt_col, 'LAT', 'LNG', 'TEM_AVG', 'TEM_MIN', 'TEM_MAX', 'RAIN', 'RH_AVG', 'RH_MIN', 'RH_MAX'])
-        era5_df[dt_col] = pd.to_datetime(era5_df[dt_col])
-        sinan_df = sinan_df.merge(era5_df, on=[dt_col, 'LAT_ERA5', 'LNG_ERA5'], how='left')
-        sinan_df.drop(columns=['LAT_ERA5', 'LNG_ERA5'], inplace=True)
+    era5_df = pd.DataFrame(era5_records, columns=[dt_col, 'LAT', 'LNG'] + list(vals.keys()))    
+    era5_df[dt_col] = pd.to_datetime(era5_df[dt_col])
+    sinan_df = sinan_df.merge(
+        era5_df.rename(columns={'LAT': 'LAT_ERA5', 'LNG': 'LNG_ERA5'}),
+        on=[dt_col, 'LAT_ERA5', 'LNG_ERA5'],
+        how='left'
+    )
+    sinan_df.drop(columns=['LAT_ERA5', 'LNG_ERA5', 'LAT', 'LNG'], inplace=True)
 
     if config.weekly:
         sinan_df.rename(columns={'DT_SEMANA': 'DT_NOTIFIC'}, inplace=True)
-    else:
-        sinan_df.drop(columns=['LAT', 'LNG'], inplace=True)
+        
+    sinan_df.to_csv('teste.csv')
 
     train_date = pd.to_datetime(config.train_split)
     val_date = pd.to_datetime(config.val_split)
@@ -119,9 +136,9 @@ def build_dataset(config_path, sinan_path, cnes_path, era5_path, output_path, id
     test = sinan_df[sinan_df['DT_NOTIFIC'] >= val_date]
 
     logging.info("🧪 Feature engineering...")
-    X_train, y_train = create_new_features(train, "train", config, config.casesonly)
-    X_val, y_val = create_new_features(val, "val", config, config.casesonly)
-    X_test, y_test = create_new_features(test, "test", config, config.casesonly)
+    X_train, y_train = create_new_features(train, "train", config)
+    X_val, y_val = create_new_features(val, "val", config)
+    X_test, y_test = create_new_features(test, "test", config)
 
     logging.info("⚖️ Normalizando...")
     scaler = StandardScaler()
@@ -140,19 +157,23 @@ def build_dataset(config_path, sinan_path, cnes_path, era5_path, output_path, id
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Arboseer Dataset Builder v3")
     parser.add_argument("--config", required=True)
-    parser.add_argument("--sinan", required=True)
-    parser.add_argument("--cnes", required=True)
-    parser.add_argument("--era5", required=True)
-    parser.add_argument("--output", required=True)
-    parser.add_argument("--unidade", default="FULL")
-
     args = parser.parse_args()
+
+    with open(args.config, "r") as f:
+        full_config = yaml.safe_load(f)
+
+    paths = full_config.get("paths", {})
+    sinan_path = paths.get("sinan")
+    cnes_path = paths.get("cnes")
+    era5_path = paths.get("era5")
+    output_path = paths.get("output")
+    id_unidade = paths.get("unidade", "FULL")
 
     build_dataset(
         config_path=args.config,
-        sinan_path=args.sinan,
-        cnes_path=args.cnes,
-        era5_path=args.era5,
-        output_path=args.output,
-        id_unidade=args.unidade
+        sinan_path=sinan_path,
+        cnes_path=cnes_path,
+        era5_path=era5_path,
+        output_path=output_path,
+        id_unidade=id_unidade
     )

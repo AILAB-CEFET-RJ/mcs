@@ -1,6 +1,13 @@
 dataset:
   weekly: true
 
+paths:
+  sinan: data/processed/sinan/DENG240810.parquet
+  cnes: data/processed/cnes/SRN2401.parquet
+  era5: data/raw/era5/RJ_1997_2024.nc
+  output: data/datasets/RN_WEEKLY.pickle
+  unidade: FULL
+
 preproc:
   SLIDING_WINDOW_SIZE: 7
   TRAIN_SPLIT: 2018-01-01
@@ -20,7 +27,16 @@ features:
     week_of_year: true
     windows: true
 
-  windows: [7, 14, 21, 28]
+    raw_features:
+      tem_avg: true
+      tem_min: true
+      tem_max: true
+      rain: true
+      rh_avg: true
+      rh_min: false
+      rh_max: false
+
+  windows: [7]  # como já é semanal, evita somar múltiplas semanas
   lags: 6
 
   temp:
