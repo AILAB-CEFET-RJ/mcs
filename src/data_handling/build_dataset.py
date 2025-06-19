@@ -136,9 +136,9 @@ def build_dataset(config_path, sinan_path, cnes_path, era5_path, output_path, id
     test = sinan_df[sinan_df['DT_NOTIFIC'] >= val_date]
 
     logging.info("🧪 Feature engineering...")
-    X_train, y_train = create_new_features(train, "train", config)
-    X_val, y_val = create_new_features(val, "val", config)
-    X_test, y_test = create_new_features(test, "test", config)
+    X_train, y_train = create_new_features(train, "train", config, output_path)
+    X_val, y_val = create_new_features(val, "val", config, output_path)
+    X_test, y_test = create_new_features(test, "test", config, output_path)
 
     logging.info("⚖️ Normalizando...")
     scaler = StandardScaler()
@@ -148,7 +148,7 @@ def build_dataset(config_path, sinan_path, cnes_path, era5_path, output_path, id
 
     logging.info("💾 Salvando pickle...")
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, "wb") as f:
+    with open(output_path+"/dataset.pickle", "wb") as f:
         pickle.dump((X_train, y_train, X_val, y_val, X_test, y_test), f)
 
     logging.info(f"✅ Dataset final salvo em: {output_path}")

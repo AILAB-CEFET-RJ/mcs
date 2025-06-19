@@ -1,0 +1,9 @@
+dataset: data/datasets/RN_DAILY/dataset.pickle
+feature_dict: data/datasets/RN_DAILY/feature_dictionary.csv
+output_dir: results/RN_DAILY
+seed: 42
+
+models:
+  random_forest: true
+  xgb_poisson: true
+  xgb_zip: true

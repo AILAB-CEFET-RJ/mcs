@@ -5,7 +5,7 @@ import joblib
 import numpy as np
 from sklearn import clone
 
-from data.data_utils import load_data
+from data_handling.utils.data_utils import load_data
 from evaluation.eval_utils import get_training_metrics, save_all_metrics, save_feature_importance
 from evaluation.plots import plot_learning_curve_external, plot_prediction_distribution
 from models.models import get_rf

@@ -1,8 +1,9 @@
+import os
 import pandas as pd
 import numpy as np
 import logging
 
-def create_new_features(df: pd.DataFrame, subset: str, config, casesonly=False):
+def create_new_features(df: pd.DataFrame, subset: str, config, output_path):
     df = df.copy()
     enabled = config.features["enable"]
     windows = config.features.get("windows", [7, 14, 21, 28])
@@ -70,7 +71,9 @@ def create_new_features(df: pd.DataFrame, subset: str, config, casesonly=False):
 
     # --- Exporta feature dictionary
     feature_names = df.drop(columns=["CASES"]).columns.tolist()
-    pd.DataFrame({"Index": range(len(feature_names)), "Feature": feature_names}).to_csv("feature_dictionary.csv", index=False)
+    print(output_path)
+    os.makedirs(os.path.dirname(output_path+"/"), exist_ok=True)
+    pd.DataFrame({"Index": range(len(feature_names)), "Feature": feature_names}).to_csv(f"{output_path}/feature_dictionary.csv", index=False)
 
     logging.info(f"{subset} - samples: {len(y)} | zeros: {(y==0).sum()} | non-zeros: {(y>0).sum()}")
     return X, y
