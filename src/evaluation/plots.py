@@ -50,19 +50,19 @@ def plot_learning_curve(model, outdir, model_name):
         plt.figure(figsize=(8, 6))
         plt.plot(train_metric, label='Treino')
         plt.plot(val_metric, label='Validação')
-        plt.title(f"Learning Curve - {model_name}")
+        plt.title(f"Boosting Loss Curve - {model_name}")
         plt.xlabel("Número de Árvores (Boosting Rounds)")
         plt.ylabel(metric_name.capitalize())
         plt.legend()
         plt.grid()
         plt.tight_layout()
 
-        save_path = os.path.join(outdir, f"learning_curve_{model_name.lower()}.png")
+        save_path = os.path.join(outdir, f"boosting_loss_curve_{model_name.lower()}.png")
         plt.savefig(save_path)
         plt.close()
-        print(f"📈 Learning curve salva em: {save_path}")
+        print(f"📈 Boosting Loss Curve salva em: {save_path}")
     else:
-        print("⚠️ Learning curve não disponível para este modelo.")
+        print("⚠️ Boosting Loss Curve não disponível para este modelo.")
         
 def plot_learning_curve_external(model, X_train, y_train, X_val, y_val, outdir, model_name):
     print("Gerando learning curve externa com validação fixa...")

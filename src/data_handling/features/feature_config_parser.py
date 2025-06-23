@@ -8,6 +8,8 @@ class FeatureConfig:
             config = yaml.safe_load(f)
 
         self.weekly = config["dataset"]["weekly"]
+        self.min_date = config["preproc"]["MIN_DATE"]        
+        self.max_date = config["preproc"]["MAX_DATE"]        
         self.train_split = config["preproc"]["TRAIN_SPLIT"]
         self.val_split = config["preproc"]["VAL_SPLIT"]
         self.window_size = config["preproc"]["SLIDING_WINDOW_SIZE"]

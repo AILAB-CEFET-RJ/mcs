@@ -13,34 +13,39 @@ def main(config_path: str):
 
     dataset_path = config["dataset"]
     dict_path = config["feature_dict"]
-    outdir = config["output_dir"]
     seed = config.get("seed", 42)
+    outdir = config["output_dir"]
 
-    os.makedirs(outdir, exist_ok=True)
     print(f"📥 Carregando dados de: {dataset_path}")
     X_train, y_train, X_val, y_val, X_test, y_test = load_data(dataset_path)
 
     if config["models"].get("random_forest", False):
         print("🌲 Treinando Random Forest...")
         rf_model = get_rf(seed)
+        rf_dir = f"{outdir}_{seed}_rf"
+        os.makedirs(rf_dir, exist_ok=True)        
         train_rf("Random Forest", rf_model,
                  X_train, y_train, X_val, y_val, X_test, y_test,
-                 outdir, dict_path)
+                 rf_dir, dict_path)
 
     if config["models"].get("xgb_poisson", False):
         print("📈 Treinando XGBoost Poisson...")
         xgb_model = get_xgb_poisson(seed)
+        xgb_dir = f"{outdir}_{seed}_xgb_poisson"
+        os.makedirs(xgb_dir, exist_ok=True)
         train_xgb_poisson("XGBOOST - Poisson", xgb_model,
                           X_train, y_train, X_val, y_val, X_test, y_test,
-                          outdir, dict_path)
+                          xgb_dir, dict_path)
 
     if config["models"].get("xgb_zip", False):
         print("🎯 Treinando XGBoost ZIP...")
         clf = get_xgb_clf(seed)
         reg = get_xgb_poisson(seed)
+        xgb_zip_dir = f"{outdir}_{seed}_xgb_zip"
+        os.makedirs(xgb_zip_dir, exist_ok=True)
         train_and_evaluate_zip("XGBOOST-ZIP", clf, reg,
                                X_train, y_train, X_val, y_val, X_test, y_test,
-                               outdir, dict_path)
+                               xgb_zip_dir, dict_path)
 
 
 if __name__ == "__main__":

@@ -8,6 +8,10 @@ def create_new_features(df: pd.DataFrame, subset: str, config, output_path):
     enabled = config.features["enable"]
     windows = config.features.get("windows", [7, 14, 21, 28])
     lags = config.features.get("lags", 6)
+    min_date = pd.to_datetime(config.min_date)
+    max_date = pd.to_datetime(config.max_date)
+    print(min_date)
+    print(max_date)
 
     def is_available(colname):
         return colname in df.columns
@@ -62,6 +66,8 @@ def create_new_features(df: pd.DataFrame, subset: str, config, output_path):
                 df[f"TEMP_RANGE_MM_{window}"] = df["TEMP_RANGE"].rolling(window=window).mean()
 
     # --- Limpeza final
+    if subset == "train":
+        df = df[df['DT_NOTIFIC'] >= min_date]
     df.drop(columns=[c for c in ["DT_NOTIFIC", "LAT", "LNG", "ID_UNIDADE"] if c in df.columns], inplace=True)
     df.dropna(inplace=True)
 

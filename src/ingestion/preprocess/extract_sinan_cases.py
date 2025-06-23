@@ -49,6 +49,7 @@ def extract_sinan_cases(cnes_id, cod_uf, cod_ibge, input_path, output_path, fill
                 logging.info(f"Created directory: {directory}")
 
             merged_df.to_parquet(output_path, index=False)
+            merged_df.to_csv("extracted.csv")
         else:
             aggregated_df.to_parquet(output_path, index=False)
             aggregated_df.to_csv('teste.csv')

@@ -9,9 +9,10 @@ def parse_model_folder_name(folder_name):
     """
     parts = folder_name.split('_')
     dataset = parts[0]
-    seed = parts[1]
-    model_type = parts[2] + (f"_{parts[3]}" if len(parts) >= 4 else "")
-    variant = "_".join(parts[4:]) if len(parts) > 4 else ""
+    variant = parts[1]+"_"+parts[2]
+    seed = parts[3]
+    model_type = parts[4] + (f"_{parts[5]}" if len(parts) >= 6 else "")
+    
     
     return dataset, seed, model_type, variant
 

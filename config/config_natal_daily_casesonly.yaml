@@ -1,5 +1,6 @@
 dataset:
   weekly: false
+  min_date: 
 
 paths:
   sinan: data/processed/sinan/DENG240810.parquet
@@ -10,6 +11,8 @@ paths:
 
 preproc:
   SLIDING_WINDOW_SIZE: 7
+  MIN_DATE: 2016-01-01
+  MAX_DATE: 2019-12-31
   TRAIN_SPLIT: 2018-01-01
   VAL_SPLIT: 2019-01-01
 

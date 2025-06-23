@@ -1,7 +1,7 @@
 dataset: data/datasets/RN_DAILY/dataset.pickle
 feature_dict: data/datasets/RN_DAILY/feature_dictionary.csv
-output_dir: models/RN_DAILY
-seed: 42
+output_dir: models/RN_DAILY_FULL
+seed: 987
 
 models:
   random_forest: true

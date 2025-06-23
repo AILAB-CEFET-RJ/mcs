@@ -10,9 +10,12 @@ runs/
 src/optimization/__pycache__/
 src/evaluation/__pycache__/
 src/ingestion/download/__pycache__/
-data_handling/__pycache__/
-data_handling/features/__pycache__/
-ingestion/preprocess/__pycache__/
+src/ingestion/preprocess/__pycache__/
+src/data_handling/__pycache__/
+src/data_handling/features/__pycache__/
+src/data_handling/utils/__pycache__
+src/models/__pycache__
+models/__pycache__/
  __pycache__/
  *.pyc
 

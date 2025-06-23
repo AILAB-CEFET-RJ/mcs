@@ -47,6 +47,10 @@ def unify_sinan(input_path, output_path):
             # Standardize ID_UNIDADE to be a 7-digit string
             df["ID_UNIDADE"] = df["ID_UNIDADE"].astype(str).str.zfill(7)
 
+            # Only confirmed cases
+            df["CLASSI_FIN"] = pd.to_numeric(df["CLASSI_FIN"], errors="coerce")
+            df = df[df["CLASSI_FIN"].isin([10, 11, 12])]
+
             # Keep only required fields
             df = df[["ID_MUNICIP", "ID_UNIDADE", "DT_NOTIFIC", "SG_UF"]]
 

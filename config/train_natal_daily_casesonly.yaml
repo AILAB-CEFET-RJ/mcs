@@ -1,7 +1,7 @@
 dataset: data/datasets/RN_DAILY_CASESONLY/dataset.pickle
 feature_dict: data/datasets/RN_DAILY_CASESONLY/feature_dictionary.csv
-output_dir: models/RN_DAILY_CASESONLY
-seed: 42
+output_dir: models/RN_DAILY_CASEONLY
+seed: 987
 
 models:
   random_forest: true
