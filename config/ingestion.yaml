@@ -2,9 +2,11 @@
 
 sinan:
   cnes_id: "None"
-  cod_uf: 33
-  cod_ibge: 3304557
+  cod_uf: "None"
+  cod_ibge: 240810
   disease: "DENG"
+  start_date: "2015-01-01"
+  end_date: "2019-12-31"
   years: 
     - 2013
     - 2014

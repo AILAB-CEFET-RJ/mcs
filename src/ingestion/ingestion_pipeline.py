@@ -80,7 +80,9 @@ def process_sinan_step(config):
         cod_ibge=cod_ibge,
         input_path=os.path.join(PROCESSED_DIR, "sinan", "concat.parquet"),
         output_path=os.path.join(PROCESSED_DIR, "sinan", f"{file_name}.parquet"),
-        filled=False
+        filled=True,
+        start_date=str(config["sinan"]["start_date"]),
+        end_date=str(config["sinan"]["end_date"])
     )
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 .vscode/
 data/
-models/__pycache__
+models/__pycache__/
 reports/
 backup/
 results/
@@ -10,6 +10,9 @@ runs/
 src/optimization/__pycache__/
 src/evaluation/__pycache__/
 src/ingestion/download/__pycache__/
+data_handling/__pycache__/
+data_handling/features/__pycache__/
+ingestion/preprocess/__pycache__/
  __pycache__/
  *.pyc
 

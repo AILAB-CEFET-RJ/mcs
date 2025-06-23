@@ -1,6 +1,6 @@
 dataset: data/datasets/RN_DAILY/dataset.pickle
 feature_dict: data/datasets/RN_DAILY/feature_dictionary.csv
-output_dir: results/RN_DAILY
+output_dir: models/RN_DAILY
 seed: 42
 
 models:
