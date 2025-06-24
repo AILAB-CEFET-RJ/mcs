@@ -17,9 +17,9 @@ preproc:
 
 features:
   enable:
-    cases_windows: false
-    cases_accumulators: false
-    cases_lags: false
+    cases_windows: true
+    cases_accumulators: true
+    cases_lags: true
 
     ideal_temp: false
     extreme_temp: false
@@ -31,15 +31,15 @@ features:
 
     raw_features:
       tem_avg: false
-      tem_min: true
-      tem_max: true
-      rain: true
-      rh_avg: true
+      tem_min: false
+      tem_max: false
+      rain: false
+      rh_avg: false
       rh_min: false
       rh_max: false
 
-  windows: []  # como já é semanal, evita somar múltiplas semanas
-  lags: 1
+  windows: [7, 14, 21, 28]
+  lags: 6
 
   temp:
     ideal_temp_range: [21, 27]

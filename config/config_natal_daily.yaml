@@ -35,10 +35,10 @@ features:
       tem_max: true
       rain: true
       rh_avg: true
-      rh_min: false
-      rh_max: false
+      rh_min: true
+      rh_max: true
 
-  windows: [7]  # como já é semanal, evita somar múltiplas semanas
+  windows: [7, 14, 21, 28]
   lags: 6
 
   temp:

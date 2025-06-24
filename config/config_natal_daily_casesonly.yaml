@@ -1,6 +1,5 @@
 dataset:
   weekly: false
-  min_date: 
 
 paths:
   sinan: data/processed/sinan/DENG240810.parquet
@@ -39,7 +38,7 @@ features:
       rh_min: false
       rh_max: false
 
-  windows: [7]  # como já é semanal, evita somar múltiplas semanas
+  windows: [7, 14, 21, 28]
   lags: 6
 
   temp:
