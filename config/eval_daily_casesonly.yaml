@@ -1,0 +1,6 @@
+DATASET: data/datasets/RN_DAILY_CASESONLY/dataset.pickle
+OUTDIR: models/eval_transfer_DAILY_CASEONLY
+MODEL_DIRS:
+  - models/RJ_DAILY_CASEONLY_987_rf
+  - models/RJ_DAILY_CASEONLY_987_xgb_poisson
+  - models/RJ_DAILY_CASEONLY_987_xgb_zip

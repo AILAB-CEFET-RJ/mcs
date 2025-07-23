@@ -6,8 +6,8 @@ import optuna
 import numpy as np
 from datetime import datetime
 
-from experiment_config_parser import ExperimentConfig
-from optimization import adaptive_spaces, objective_functions, space_refiner
+from optimization.experiment_config_parser import ExperimentConfig
+from  optimization import adaptive_spaces, objective_functions, space_refiner
 from evaluation.eval_utils import get_training_metrics
 
 class ExperimentController:
@@ -55,7 +55,7 @@ class ExperimentController:
 
             def optuna_objective(trial):
                 params = suggest_fn(trial, space)
-                metrics = objective_fn(trial, X_train, y_train, X_val, y_val, params)
+                metrics = objective_fn(params, X_train, y_train, X_val, y_val, self.config.n_jobs_xgb, self.config.early_stopping_rounds)
                 return list(metrics.values())
 
             study.optimize(optuna_objective, n_trials=trials)
@@ -71,8 +71,21 @@ class ExperimentController:
         best_trial = study.best_trials[0]
         best_params = suggest_fn(best_trial, space)
 
-        model_final = objective_fn(None, X_train, y_train, X_test, y_test, best_params, return_model=True)
-        y_pred = model_final.predict(X_test)
+        model_final = model_final = objective_fn(best_params, X_train, y_train, X_test, y_test, self.config.n_jobs_xgb, self.config.early_stopping_rounds, return_model=True)
+
+        if model_type == "zip":
+            clf_model, reg_model = model_final
+
+            prob_test = clf_model.predict_proba(X_test)[:, 1]
+            y_pred_reg = reg_model.predict(X_test)
+
+            from evaluation.eval_utils import optimize_threshold
+            threshold = optimize_threshold(prob_test, y_pred_reg, y_test)
+
+            y_pred = y_pred_reg * (prob_test > threshold)
+        else:
+            y_pred = model_final.predict(X_test)        
+        
         y_pred = np.round(np.maximum(y_pred, 0)).astype(int)
 
         test_metrics = get_training_metrics(y_test, y_pred)

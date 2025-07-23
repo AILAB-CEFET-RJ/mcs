@@ -6,7 +6,7 @@ from sklearn.ensemble import RandomForestRegressor
 from evaluation.eval_utils import get_training_metrics, optimize_threshold
 
 # ---------- Poisson puro ----------
-def objective_poisson(params, X_train, y_train, X_val, y_val, n_jobs, early_stopping):
+def objective_poisson(params, X_train, y_train, X_val, y_val, n_jobs, early_stopping, return_model=False):
     model = XGBRegressor(
         objective="count:poisson",
         eval_metric="poisson-nloglik",
@@ -23,13 +23,17 @@ def objective_poisson(params, X_train, y_train, X_val, y_val, n_jobs, early_stop
         callbacks=[callback.EarlyStopping(rounds=early_stopping)]
     )
 
+    if return_model:
+        model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+        return model
+
     model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
     y_pred = model.predict(X_val)
 
     return get_training_metrics(y_val, y_pred)
 
 # ---------- Random Forest ----------
-def objective_rf(params, X_train, y_train, X_val, y_val, n_jobs, early_stopping):
+def objective_rf(params, X_train, y_train, X_val, y_val, n_jobs, early_stopping, return_model=False):
     model = RandomForestRegressor(
         n_estimators=params["n_estimators"],
         max_depth=params["max_depth"],
@@ -41,6 +45,10 @@ def objective_rf(params, X_train, y_train, X_val, y_val, n_jobs, early_stopping)
         n_jobs=n_jobs
     )
 
+    if return_model:
+        model.fit(X_train, y_train)
+        return model
+
     model.fit(X_train, y_train)
     y_pred = model.predict(X_val)
     y_pred = np.round(np.maximum(y_pred, 0)).astype(int)
@@ -48,7 +56,7 @@ def objective_rf(params, X_train, y_train, X_val, y_val, n_jobs, early_stopping)
     return get_training_metrics(y_val, y_pred)
 
 # ---------- ZIP ----------
-def objective_zip(params, X_train, y_train, X_val, y_val, n_jobs, early_stopping):
+def objective_zip(params, X_train, y_train, X_val, y_val, n_jobs, early_stopping, return_model=False):
     mask_train = y_train > 0
     mask_val = y_val > 0
 
@@ -66,8 +74,6 @@ def objective_zip(params, X_train, y_train, X_val, y_val, n_jobs, early_stopping
         callbacks=[callback.EarlyStopping(rounds=early_stopping)]
     )
 
-    clf.fit(X_train, (y_train > 0).astype(int), eval_set=[(X_val, (y_val > 0).astype(int))], verbose=False)
-
     reg = XGBRegressor(
         objective="count:poisson",
         eval_metric="poisson-nloglik",
@@ -84,6 +90,14 @@ def objective_zip(params, X_train, y_train, X_val, y_val, n_jobs, early_stopping
         callbacks=[callback.EarlyStopping(rounds=early_stopping)]
     )
 
+    if return_model:
+        clf.fit(X_train,(y_train > 0).astype(int), eval_set=[(X_val, (y_val > 0).astype(int))], verbose=False)
+
+        reg.fit(X_train[mask_train], y_train[mask_train], eval_set=[(X_val[mask_val], y_val[mask_val])], verbose=False)
+
+        return (clf, reg)
+
+    clf.fit(X_train, (y_train > 0).astype(int), eval_set=[(X_val, (y_val > 0).astype(int))], verbose=False)
     reg.fit(X_train[mask_train], y_train[mask_train], eval_set=[(X_val[mask_val], y_val[mask_val])], verbose=False)
 
     prob_val = clf.predict_proba(X_val)[:, 1]
@@ -94,3 +108,4 @@ def objective_zip(params, X_train, y_train, X_val, y_val, n_jobs, early_stopping
     y_pred = np.round(np.maximum(y_pred, 0)).astype(int)
 
     return get_training_metrics(y_val, y_pred)
+

@@ -24,18 +24,27 @@ def main(config_path: str):
         rf_model = get_rf(seed)
         rf_dir = f"{outdir}_{seed}_rf"
         os.makedirs(rf_dir, exist_ok=True)        
-        train_rf("Random Forest", rf_model,
+        model_rf, _ = train_rf("Random Forest", rf_model,
                  X_train, y_train, X_val, y_val, X_test, y_test,
                  rf_dir, dict_path)
+        
+        model_path = os.path.join(rf_dir, f"model.pkl")
+        joblib.dump(model_rf, model_path)
+        print(f"📂 Modelo salvo em: {model_path}")        
+        
 
     if config["models"].get("xgb_poisson", False):
         print("📈 Treinando XGBoost Poisson...")
         xgb_model = get_xgb_poisson(seed)
         xgb_dir = f"{outdir}_{seed}_xgb_poisson"
         os.makedirs(xgb_dir, exist_ok=True)
-        train_xgb_poisson("XGBOOST - Poisson", xgb_model,
+        model_xgb, _ = train_xgb_poisson("XGBOOST - Poisson", xgb_model,
                           X_train, y_train, X_val, y_val, X_test, y_test,
                           xgb_dir, dict_path)
+        
+        model_path = os.path.join(xgb_dir, f"model.pkl")
+        joblib.dump(model_xgb, model_path)
+        print(f"📂 Modelo salvo em: {model_path}")        
 
     if config["models"].get("xgb_zip", False):
         print("🎯 Treinando XGBoost ZIP...")
@@ -43,9 +52,13 @@ def main(config_path: str):
         reg = get_xgb_poisson(seed)
         xgb_zip_dir = f"{outdir}_{seed}_xgb_zip"
         os.makedirs(xgb_zip_dir, exist_ok=True)
-        train_and_evaluate_zip("XGBOOST-ZIP", clf, reg,
+        clf_d, reg_d, _ = train_and_evaluate_zip("XGBOOST-ZIP", clf, reg,
                                X_train, y_train, X_val, y_val, X_test, y_test,
                                xgb_zip_dir, dict_path)
+        
+        model_path = os.path.join(xgb_zip_dir, "model.pkl")
+        joblib.dump((clf_d, reg_d), model_path)
+        print(f"✅ Modelos salvos em: {model_path}")        
 
 
 if __name__ == "__main__":

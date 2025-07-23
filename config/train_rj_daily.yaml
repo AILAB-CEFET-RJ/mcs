@@ -1,0 +1,9 @@
+dataset: data/datasets/RJ_DAILY/dataset.pickle
+feature_dict: data/datasets/RJ_DAILY/feature_dictionary.csv
+output_dir: models/RJ_DAILY_FULL
+seed: 987
+
+models:
+  random_forest: true
+  xgb_poisson: true
+  xgb_zip: true

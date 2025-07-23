@@ -46,6 +46,7 @@ tests/__pycache__/
 #*.png
 *.nc
 *.parquet
+*.pkl
 src/spatiotemporal_builder/__pycache__/__init__.cpython-310.pyc
 src/spatiotemporal_builder/__pycache__/AlertarioCoords.cpython-310.pyc
 src/spatiotemporal_builder/__pycache__/AlertarioKeys.cpython-310.pyc

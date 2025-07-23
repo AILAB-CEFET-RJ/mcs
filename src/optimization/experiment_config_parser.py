@@ -22,7 +22,11 @@ class ExperimentConfig:
         self.runs_dir = self.global_config.get("runs_dir", "runs")
         self.directions = self.global_config.get("directions", ["minimize"])
 
-        self.n_jobs_xgb = self.global_config.get("n_jobs_xgb", 8)
+        try:
+            self.n_jobs_xgb = int(self.global_config.get("n_jobs_xgb", 8))
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid n_jobs_xgb value in YAML: {self.global_config.get('n_jobs_xgb')}")
+        
         self.early_stopping_rounds = self.global_config.get("early_stopping_rounds", 20)
 
     def list_experiments(self):

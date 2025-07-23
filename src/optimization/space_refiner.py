@@ -44,6 +44,12 @@ def refine_space(study, old_space, shrink_factor=0.3, expand_ratio=1.3, boundary
         if new_low >= new_high:
             new_low, new_high = old_low, old_high
 
+        # Auto-clipping para parâmetros que devem estar em [0, 1]
+        # Futuramente irá pra um outro arquivo
+        if "colsample" in param_name or "subsample" in param_name:
+            new_low = max(0.0, min(new_low, 1.0))
+            new_high = max(0.0, min(new_high, 1.0))            
+
         # Cast inteligente para int/float
         if isinstance(old_low, int) and isinstance(old_high, int):
             new_space[param_name] = (int(new_low), int(new_high))

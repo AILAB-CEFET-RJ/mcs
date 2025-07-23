@@ -6,7 +6,7 @@ global:
   n_jobs_xgb: 8
   early_stopping_rounds: 20
   runs_dir: "runs"
-  trials_per_round: [50, 100, 150]
+  trials_per_round: [30, 20, 10]
 
   directions:
     - minimize  # MSE
