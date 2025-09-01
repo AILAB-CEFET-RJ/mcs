@@ -3,12 +3,37 @@ import numpy as np
 from scipy.stats import pearsonr
 import pandas as pd
 import math
+import re
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score, mean_poisson_deviance
 
 def smape(y_true, y_pred):
     return 100 * np.mean(
         2 * np.abs(y_pred - y_true) / (np.abs(y_true) + np.abs(y_pred) + 1e-10)
     )
+
+def save_predictions(
+    y_true, y_pred, dates=None, outdir=".",
+):
+    os.makedirs(outdir, exist_ok=True)
+
+    df = pd.DataFrame({
+        "y_true": np.asarray(y_true, dtype=float),
+        "y_pred": np.asarray(y_pred, dtype=float),
+    })
+    if dates is not None:
+        try:
+            df["date"] = pd.to_datetime(dates)
+        except Exception:
+            df["date"] = dates
+        df = df[["date", "y_true", "y_pred"]]
+    else:
+        df["t_index"] = np.arange(len(df))
+        df = df[["t_index", "y_true", "y_pred"]]
+
+    fname = f"predictions.csv"
+    outpath = os.path.join(outdir, fname)
+    df.to_csv(outpath, index=False)
+    return outpath
          
 def get_training_metrics(y_true, y_pred):
     # Arredondar para métricas de erro

@@ -6,7 +6,7 @@ global:
   n_jobs_xgb: 8
   early_stopping_rounds: 20
   runs_dir: "runs"
-  trials_per_round: [30, 20, 10]
+  trials_per_round: [50, 40, 30]
 
   directions:
     - minimize  # MSE
@@ -19,14 +19,25 @@ global:
     - minimize  # Poisson Deviance
 
 experiments:
-  - dataset: data/datasets/RJ.pickle
+  # - dataset: data/datasets/RJ.pickle
+  #   models: [poisson, zip, rf]
+
+  # - dataset: data/datasets/RJ_WEEKLY.pickle
+  #   models: [poisson, zip, rf]
+
+  # - dataset: data/datasets/RJ_CASESONLY.pickle
+  #   models: [poisson, zip, rf]
+
+  # - dataset: data/datasets/RJ_WEEKLY_CASESONLY.pickle
+  #   models: [poisson, zip, rf]
+  - dataset: data/datasets/RN_DAILY/dataset.pickle
     models: [poisson, zip, rf]
 
-  - dataset: data/datasets/RJ_WEEKLY.pickle
+  - dataset: data/datasets/RN_WEEKLY/dataset.pickle
     models: [poisson, zip, rf]
 
-  - dataset: data/datasets/RJ_CASESONLY.pickle
+  - dataset: data/datasets/RN_DAILY_CASESONLY/dataset.pickle
     models: [poisson, zip, rf]
 
-  - dataset: data/datasets/RJ_WEEKLY_CASESONLY.pickle
+  - dataset: data/datasets/RN_WEEKLY_CASESONLY/dataset.pickle
     models: [poisson, zip, rf]

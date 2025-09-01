@@ -1,4 +1,4 @@
-dataset: data/datasets/RN_WEEKLY_CASESONLY/dataset.pickle
+dataset: data/datasets/RN_WEEKLY_CASESONLY/RN_WEEKLY_CASESONLY.pickle
 feature_dict: data/datasets/RN_WEEKLY_CASESONLY/feature_dictionary.csv
 output_dir: models/RN_WEEKLY_CASESONLY
 seed: 987

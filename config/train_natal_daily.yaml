@@ -1,4 +1,4 @@
-dataset: data/datasets/RN_DAILY/dataset.pickle
+dataset: data/datasets/RN_DAILY/RN_DAILY.pickle
 feature_dict: data/datasets/RN_DAILY/feature_dictionary.csv
 output_dir: models/RN_DAILY_FULL
 seed: 987

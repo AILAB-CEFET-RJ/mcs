@@ -6,7 +6,7 @@ import numpy as np
 from sklearn import clone
 
 from data_handling.utils.data_utils import load_data
-from evaluation.eval_utils import get_training_metrics, save_all_metrics, save_feature_importance
+from evaluation.eval_utils import get_training_metrics, save_all_metrics, save_feature_importance, save_predictions
 from evaluation.plots import plot_learning_curve_external, plot_prediction_distribution
 from models.models import get_rf
 
@@ -41,6 +41,10 @@ def train_and_evaluate(name, model, X_train, y_train, X_val, y_val, X_test, y_te
     print(f"Salvando importância de features...")
     if hasattr(model, "feature_importances_"):
         save_feature_importance(name, model, X_train, outdir, feature_dictionary)
+
+    save_predictions(
+        y_true=y_test, y_pred=y_pred_test, dates=None, outdir=outdir
+    )        
 
     return model, y_pred_test
 

@@ -5,7 +5,7 @@ import joblib
 import numpy as np
 
 from data_handling.utils.data_utils import load_data
-from evaluation.eval_utils import get_training_metrics, optimize_threshold, save_all_metrics, save_feature_importance, save_threshold
+from evaluation.eval_utils import get_training_metrics, optimize_threshold, save_all_metrics, save_feature_importance, save_predictions, save_threshold
 from evaluation.plots import plot_prediction_distribution, plot_learning_curve
 from models.models import get_xgb_clf, get_xgb_poisson
 
@@ -67,6 +67,11 @@ def train_and_evaluate_zip(name, clf, reg, X_train, y_train, X_val, y_val, X_tes
     print("📌 Salvando importância das features...")
     if hasattr(reg, "feature_importances_"):
         save_feature_importance(f"{name}_Regressor", reg, X_train, outdir, feature_dict)
+
+    print(f"Salvando previsões...")
+    save_predictions(
+        y_true=y_test, y_pred=y_pred, dates=None, outdir=outdir
+    )                
 
     return clf, reg, y_pred
 
