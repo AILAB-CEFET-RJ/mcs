@@ -5,7 +5,7 @@ import logging
 
 def create_new_features(df: pd.DataFrame, subset: str, config, output_path):
     df = df.copy()
-    enabled = config.features["enable"]
+    enabled = config.features["enable"] 
     windows = config.features.get("windows", [7, 14, 21, 28])
     lags = config.features.get("lags", 6)
     min_date = pd.to_datetime(config.min_date)
@@ -68,6 +68,25 @@ def create_new_features(df: pd.DataFrame, subset: str, config, output_path):
     # --- Limpeza final
     if subset == "train":
         df = df[df['DT_NOTIFIC'] >= min_date]
+
+    # 1) preparar colunas do sidecar ANTES de descartar nada
+    date_col = "DATE" if "DATE" in df.columns else "DT_NOTIFIC"
+    sidecar_cols = [c for c in [date_col, "ID_UNIDADE"] if c in df.columns]
+    sidecar_df = df[sidecar_cols].copy()
+
+    # 2) definir colunas de features (excluir alvo e sidecar/coords)
+    cols_to_exclude = set(["CASES", "LAT", "LNG"] + sidecar_cols)
+    feat_cols = [c for c in df.columns if c not in cols_to_exclude]
+
+    # 3) máscara de linhas válidas (sem NaN em y nem em features)
+    valid_mask = df[["CASES"] + feat_cols].notna().all(axis=1)
+    df_valid = df.loc[valid_mask].copy()
+
+    # 4) montar sidecar ALINHADO 1-a-1 com y
+    sidecar = {
+        "DATE": pd.to_datetime(sidecar_df.loc[valid_mask, date_col]).to_numpy() if date_col in sidecar_df else None,
+        "ID_UNIDADE": sidecar_df.loc[valid_mask, "ID_UNIDADE"].to_numpy() if "ID_UNIDADE" in sidecar_df else None,
+    }
     df.drop(columns=[c for c in ["DT_NOTIFIC", "LAT", "LNG", "ID_UNIDADE"] if c in df.columns], inplace=True)
     df.dropna(inplace=True)
 
@@ -82,4 +101,4 @@ def create_new_features(df: pd.DataFrame, subset: str, config, output_path):
     pd.DataFrame({"Index": range(len(feature_names)), "Feature": feature_names}).to_csv(f"{output_path}/feature_dictionary.csv", index=False)
 
     logging.info(f"{subset} - samples: {len(y)} | zeros: {(y==0).sum()} | non-zeros: {(y>0).sum()}")
-    return X, y
+    return X, y, sidecar

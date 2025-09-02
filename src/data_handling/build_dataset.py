@@ -11,6 +11,7 @@ from scipy.spatial import cKDTree
 import xarray as xr
 import yaml
 from tqdm import tqdm
+import json
 
 from features.feature_config_parser import FeatureConfig
 from features.feature_engineering import create_new_features
@@ -136,9 +137,9 @@ def build_dataset(config_path, sinan_path, cnes_path, era5_path, output_path, id
     test = sinan_df[sinan_df['DT_NOTIFIC'] >= val_date]
 
     logging.info("🧪 Feature engineering...")
-    X_train, y_train = create_new_features(train, "train", config, output_path)
-    X_val, y_val = create_new_features(val, "val", config, output_path)
-    X_test, y_test = create_new_features(test, "test", config, output_path)
+    X_train, y_train, ids_train = create_new_features(train, "train", config, output_path)
+    X_val,   y_val,   ids_val   = create_new_features(val,   "val",   config, output_path)
+    X_test,  y_test,  ids_test  = create_new_features(test,  "test",  config, output_path)
 
     logging.info("⚖️ Normalizando...")
     scaler = StandardScaler()
@@ -150,6 +151,18 @@ def build_dataset(config_path, sinan_path, cnes_path, era5_path, output_path, id
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path+"/dataset.pickle", "wb") as f:
         pickle.dump((X_train, y_train, X_val, y_val, X_test, y_test), f)
+
+    # 💾 Sidecar com identificadores alinhados (não entram no dataset.pickle)
+    ids_payload = {
+        "train": ids_train,   # dict com arrays: DATE, ID_UNIDADE
+        "val":   ids_val,
+        "test":  ids_test,
+    }
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(os.path.join(output_path, "dataset_ids.pickle"), "wb") as f:
+        pickle.dump(ids_payload, f)
+    with open(os.path.join(output_path, "dataset_meta.json"), "w", encoding="utf-8") as f:
+        json.dump({"sidecars": ["dataset_ids.pickle", "dataset_meta.json"]}, f, ensure_ascii=False, indent=2)      
 
     logging.info(f"✅ Dataset final salvo em: {output_path}")
 
