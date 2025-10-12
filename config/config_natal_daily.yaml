@@ -4,7 +4,7 @@ dataset:
 paths:
   sinan: data/processed/sinan/DENG240810.parquet
   cnes: data/processed/cnes/SRN2401.parquet
-  era5: data/raw/era5/RJ_1997_2024.nc
+  era5: data/raw/era5/NATAL_2016_2019.nc
   output: data/datasets/RN_DAILY
   unidade: FULL
 

@@ -1,4 +1,4 @@
-dataset: data/datasets/RN_DAILY_CASESONLY/RN_DAILY_CASESONLY.pickle
+dataset: data/datasets/RN_DAILY_CASESONLY/dataset.pickle
 feature_dict: data/datasets/RN_DAILY_CASESONLY/feature_dictionary.csv
 output_dir: models/RN_DAILY_CASEONLY
 seed: 987
