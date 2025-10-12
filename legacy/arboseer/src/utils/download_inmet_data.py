@@ -8,47 +8,48 @@ import requests
 INMET_API_BASE_URL = "https://apitempo.inmet.gov.br"
 
 INMET_WEATHER_STATION_IDS = (
-    'A617',
-    'A615',
-    'A628',
-    'A606',
-    'A502',
-    'A604',
-    'A607',
-    'A620',
-    'A629',
-    'A557',
-    'A603',
-    'A518',
-    'A608',
-    'A517',
-    'A627',
-    'A624',
-    'A570',
-    'A513',
-    'A619',
-    'A529',
-    'A610',
-    'A622',
-    'A637',
-    'A609',
-    'A626',
-    'A652',
-    'A636',
-    'A621',
-    'A602',
-    'A630',
-    'A514',
-    'A667',
-    'A601',
-    'A659',
-    'A618',
-    'A625',
-    'A611',
-    'A633',
-    'A510',
-    'A634',
-    'A612'
+    'A304',
+    # 'A617',
+    # 'A615',
+    # 'A628',
+    # 'A606',
+    # 'A502',
+    # 'A604',
+    # 'A607',
+    # 'A620',
+    # 'A629',
+    # 'A557',
+    # 'A603',
+    # 'A518',
+    # 'A608',
+    # 'A517',
+    # 'A627',
+    # 'A624',
+    # 'A570',
+    # 'A513',
+    # 'A619',
+    # 'A529',
+    # 'A610',
+    # 'A622',
+    # 'A637',
+    # 'A609',
+    # 'A626',
+    # 'A652',
+    # 'A636',
+    # 'A621',
+    # 'A602',
+    # 'A630',
+    # 'A514',
+    # 'A667',
+    # 'A601',
+    # 'A659',
+    # 'A618',
+    # 'A625',
+    # 'A611',
+    # 'A633',
+    # 'A510',
+    # 'A634',
+    # 'A612'
 )
 
 def retrieve_from_station(station_id, beginning_year, end_year, api_token, output_path):
@@ -130,8 +131,8 @@ def main(argv):
     end_year = args.end_year
     output_path = args.output_path
 
-    if not (station_id in INMET_WEATHER_STATION_IDS):
-        parser.error(f'Invalid station ID: {station_id}')
+    # if not (station_id in INMET_WEATHER_STATION_IDS):
+    #     parser.error(f'Invalid station ID: {station_id}')
 
     assert (api_token is not None) and (api_token != '')
     assert (station_id is not None) and (station_id != '')
