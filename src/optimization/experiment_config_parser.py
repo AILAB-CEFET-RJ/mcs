@@ -37,6 +37,7 @@ class ExperimentConfig:
         for exp in self.experiments:
             dataset = exp["dataset"]
             models = exp["models"]
+            name = exp.get("name", None)
             for model in models:
-                pairs.append((dataset, model))
+                pairs.append((dataset, model, name))
         return pairs
