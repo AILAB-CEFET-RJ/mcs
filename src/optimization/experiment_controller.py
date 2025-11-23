@@ -8,8 +8,9 @@ import logging
 from datetime import datetime
 
 from optimization.experiment_config_parser import ExperimentConfig
-from optimization import adaptive_spaces, objective_functions, space_refiner, pick_best_trial_weighted
-from evaluation.eval_utils import get_training_metrics
+from optimization import adaptive_spaces, objective_functions, space_refiner
+from optimization.pick_best_trial_weighted import pick_best_trial_weighted
+
 
 class ExperimentController:
 
@@ -20,22 +21,15 @@ class ExperimentController:
         with open(dataset_path, "rb") as f:
             X_train, y_train, X_val, y_val, X_test, y_test = pickle.load(f)
 
-        # Reshape (caso sliding window)
         X_train = X_train.reshape(X_train.shape[0], -1)
         X_val   = X_val.reshape(X_val.shape[0], -1)
         X_test  = X_test.reshape(X_test.shape[0], -1)
         return X_train, y_train, X_val, y_val, X_test, y_test
 
     def _setup_logger(self, study_dir):
-        """
-        Creates a per-run logger that writes to study_dir/run.log
-        and also echoes to stdout.
-        """
-        logger = logging.getLogger(study_dir)  # unique name per dir
+        logger = logging.getLogger(study_dir)
         logger.setLevel(logging.INFO)
-        logger.propagate = False  # avoid double logging if root is set
-
-        # Clear handlers if rerun in same process
+        logger.propagate = False
         if logger.handlers:
             logger.handlers.clear()
 
@@ -57,7 +51,6 @@ class ExperimentController:
         logger.addHandler(fh)
         logger.addHandler(sh)
 
-        # Capture Optuna logs to same file
         optuna_logger = optuna.logging.get_logger("optuna")
         optuna_logger.handlers.clear()
         optuna_logger.addHandler(fh)
@@ -66,14 +59,42 @@ class ExperimentController:
 
         return logger
 
+    @staticmethod
+    def split_zip_params(flat_params):
+        clf_params, reg_params = {}, {}
+
+        for key, value in flat_params.items():
+            if key.startswith("clf_"):
+                k = key.replace("clf_", "")
+                if k == "colsample":
+                    k = "colsample_bytree"
+                if k == "model_seed":
+                    continue
+                clf_params[k] = value
+
+            elif key.startswith("reg_"):
+                if key in ("reg_alpha", "reg_lambda"):
+                    reg_params[key] = value
+                    continue
+                k = key.replace("reg_", "")
+                if k == "colsample":
+                    k = "colsample_bytree"
+                if k == "model_seed":
+                    continue
+                reg_params[k] = value
+
+        return {"clf": clf_params, "reg": reg_params}
+
     def run(self):
-        for dataset_path, model_type, name in self.config.list_experiments():
-            self.run_single_experiment(dataset_path, model_type, name)
+        for dataset_path, model_type, name, train_config in self.config.list_experiments():
+            self.run_single_experiment(dataset_path, model_type, name, train_config)
 
-    def run_single_experiment(self, dataset_path, model_type, name):
+    def run_single_experiment(self, dataset_path, model_type, name, train_config):
         X_train, y_train, X_val, y_val, X_test, y_test = self.load_data(dataset_path)
-
-        # Espaço inicial
+        # MSE   RMSE  MAE   -R²   MAPE  SMAPE  -Rho  PoisDev
+        weights = np.array([0.75, 0.75, 1.5, 1.25, 0.25, 1.0, 1.25, 2.25], dtype=float)
+        weights = weights / weights.sum()
+        
         space = getattr(adaptive_spaces, f"initial_{model_type}_space")
         suggest_fn = getattr(adaptive_spaces, f"suggest_{model_type}")
         objective_fn = getattr(objective_functions, f"objective_{model_type}")
@@ -85,6 +106,7 @@ class ExperimentController:
         logger = self._setup_logger(study_dir)
         logger.info(f"🚀 Iniciando experimento: Dataset={dataset_path} | Modelo={model_type} | Name={name}")
         logger.info(f"📁 study_dir: {study_dir}")
+        logger.info(f"📄 train_config: {train_config}")
 
         # Adaptive rounds
         for round_idx, trials in enumerate(self.config.trials_per_round, start=1):
@@ -109,40 +131,49 @@ class ExperimentController:
 
             # Refina espaço adaptativo para próxima rodada
             if round_idx != len(self.config.trials_per_round):
-                space = space_refiner.refine_space(study, space)
+                space = space_refiner.refine_space(
+                    study,
+                    space,
+                    weights=weights,
+                    norm="minmax",
+                    top_frac=0.2
+                )
 
-        # Avaliação final no teste
-        weights = [  # example: equal weights (edit to your thesis weights)
-            1, 1, 1, 1, 1, 1, 1, 1
-        ]
+        # ---- Elect best trial (weighted) ----
+        best_trial, best_score, _ = pick_best_trial_weighted(study, weights=weights, norm="minmax")
 
-        best_trial, best_score, row = self.pick_best_trial_weighted(
-            study, weights=weights, norm="minmax"
-        )
-
-        best_params = best_trial.params
         logger.info(f"🏆 Elected best trial #{best_trial.number} | score={best_score:.6f}")
         logger.info(f"📌 values={best_trial.values}")
-        logger.info(f"📌 params={best_params}")
+        logger.info(f"📌 raw params={best_trial.params}")
 
-        model_final = model_final = objective_fn(best_params, X_train, y_train, X_test, y_test, self.config.n_jobs_xgb, self.config.early_stopping_rounds, return_model=True)
+        # ---- Final robust training ----
+        from train_pipeline import run_training
 
-        if model_type == "zip":
-            clf_model, reg_model = model_final
-            prob_test = clf_model.predict_proba(X_test)[:, 1]
-            y_pred_reg = reg_model.predict(X_test)
+        seeds = [109, 220, 222, 241, 149, 107, 75, 248, 254, 140]
 
-            from evaluation.eval_utils import optimize_threshold
-            threshold = optimize_threshold(prob_test, y_pred_reg, y_test)
+        hyperparams_by_model = {}
 
-            y_pred = y_pred_reg * (prob_test > threshold)
+        if model_type == "poisson":
+            best_params = {k:v for k,v in best_trial.params.items() if k != "model_seed"}
+            hyperparams_by_model["xgb_poisson"] = best_params
+
+        elif model_type == "rf":
+            best_params = {k:v for k,v in best_trial.params.items() if k != "model_seed"}
+            hyperparams_by_model["random_forest"] = best_params
+
+        elif model_type == "zip":
+            zip_hp = self.split_zip_params(best_trial.params)
+            hyperparams_by_model["xgb_zip"] = zip_hp
+            logger.info(f"📌 ZIP clf params={zip_hp['clf']}")
+            logger.info(f"📌 ZIP reg params={zip_hp['reg']}")
+
         else:
-            y_pred = model_final.predict(X_test)
-        y_pred = np.round(np.maximum(y_pred, 0)).astype(int)
+            raise ValueError(f"Unknown model_type: {model_type}")
 
-        test_metrics = get_training_metrics(y_test, y_pred)
-        logger.info(f"📊 Test Metrics: {test_metrics}")
+        run_training(
+            config_path=train_config,
+            hyperparams_by_model=hyperparams_by_model,
+            seeds=seeds
+        )
 
-        with open(os.path.join(study_dir, "final_test_metrics.json"), "w") as f:
-            import json
-            json.dump(test_metrics, f, indent=4)
+        logger.info("✅ Final robust training completed.")

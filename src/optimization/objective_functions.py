@@ -17,7 +17,7 @@ def objective_poisson(params, X_train, y_train, X_val, y_val, n_jobs, early_stop
         colsample_bytree=params["colsample_bytree"],
         reg_alpha=params["reg_alpha"],
         reg_lambda=params["reg_lambda"],
-        random_state=params["model_seed"],
+        #random_state=params["model_seed"],
         n_jobs=n_jobs,
         verbosity=0,
         callbacks=[callback.EarlyStopping(rounds=early_stopping)]
@@ -41,7 +41,7 @@ def objective_rf(params, X_train, y_train, X_val, y_val, n_jobs, early_stopping,
         min_samples_leaf=params["min_samples_leaf"],
         max_features=params["max_features"],
         bootstrap=params["bootstrap"],
-        random_state=params["model_seed"],
+        #random_state=params["model_seed"],
         n_jobs=n_jobs
     )
 
@@ -68,7 +68,7 @@ def objective_zip(params, X_train, y_train, X_val, y_val, n_jobs, early_stopping
         max_depth=params["clf_max_depth"],
         subsample=params["clf_subsample"],
         colsample_bytree=params["clf_colsample"],
-        random_state=params["clf_model_seed"],
+        #random_state=params["clf_model_seed"],
         n_jobs=n_jobs,
         verbosity=0,
         callbacks=[callback.EarlyStopping(rounds=early_stopping)]
@@ -84,7 +84,7 @@ def objective_zip(params, X_train, y_train, X_val, y_val, n_jobs, early_stopping
         colsample_bytree=params["reg_colsample"],
         reg_alpha=params["reg_alpha"],
         reg_lambda=params["reg_lambda"],
-        random_state=params["reg_model_seed"],
+        #random_state=params["reg_model_seed"],
         n_jobs=n_jobs,
         verbosity=0,
         callbacks=[callback.EarlyStopping(rounds=early_stopping)]

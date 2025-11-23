@@ -31,13 +31,18 @@ class ExperimentConfig:
 
     def list_experiments(self):
         """
-        Retorna lista [(dataset_path, model_type)] para varrer experimentos.
+        Retorna lista [(dataset_path, model_type, name, train_config)].
         """
         pairs = []
         for exp in self.experiments:
             dataset = exp["dataset"]
             models = exp["models"]
             name = exp.get("name", None)
+            train_config = exp.get("train_config", None)
+
+            if train_config is None:
+                raise ValueError(f"Experiment '{name}' is missing train_config.")
+
             for model in models:
-                pairs.append((dataset, model, name))
+                pairs.append((dataset, model, name, train_config))
         return pairs

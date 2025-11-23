@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-def pick_best_trial_weighted(self, study, weights=None, norm="minmax"):
+def pick_best_trial_weighted(study, weights=None, norm="minmax"):
     """
     Pick a single best trial from a multi-objective study
     using normalized weighted aggregation.
