@@ -27,6 +27,9 @@ def find_nearest(lat, lon, tree, coords):
 
 # Leitura ERA5
 def extract_era5_data(ds, lat, lon, date, config):
+    if "time" not in ds.coords and "valid_time" in ds.coords:
+        ds = ds.rename({"valid_time": "time"})
+        
     ds_point = ds.sel(latitude=lat, longitude=lon, method='nearest')
     if config.weekly:
         week_start = pd.Timestamp(date)
