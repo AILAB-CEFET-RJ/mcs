@@ -3,14 +3,14 @@ dataset:
 
 paths:
   sinan: data/processed/sinan/DENG240810.parquet
-  cnes: data/processed/cnes/STRN2401.parquet
-  era5: data/raw/era5/NATAL_2016_2019.nc
+  cnes: data/processed/cnes/STRN2412.parquet
+  era5: data/raw/era5/NATAL_2014_2019.nc
   output: data/datasets/RN_WEEKLY_CASESONLY
   unidade: FULL
 
 preproc:
   SLIDING_WINDOW_SIZE: 7
-  MIN_DATE: 2016-01-01
+  MIN_DATE: 2015-01-01
   MAX_DATE: 2019-12-31
   TRAIN_SPLIT: 2018-01-01
   VAL_SPLIT: 2019-01-01
