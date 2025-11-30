@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 # Importação dos módulos existentes
 from download.download_cnes import download_cnes
-from download.download_sinan import download_sinan, combine_parquet_files
+#from download.download_sinan import download_sinan, combine_parquet_files
 from preprocess.unify_sinan import unify_sinan
 from preprocess.extract_sinan_cases import extract_sinan_cases
 from preprocess.process_cnes import preprocess_cnes
@@ -44,13 +44,13 @@ def download_sinan_step(config):
     logging.info("🔽 Download SINAN...")
     os.makedirs(os.path.join(RAW_DIR, "sinan"), exist_ok=True)
 
-    for year in tqdm(config["sinan"]["years"], desc="SINAN"):
-        downloaded_file = download_sinan(
-            config["sinan"]["disease"], year, os.path.join(RAW_DIR, "sinan")
-        )
-        if downloaded_file:
-            file_path = f"{os.path.join(RAW_DIR, 'sinan')}/{downloaded_file.name}.parquet"
-            combine_parquet_files(file_path, file_path)
+    # for year in tqdm(config["sinan"]["years"], desc="SINAN"):
+    #     downloaded_file = download_sinan(
+    #         config["sinan"]["disease"], year, os.path.join(RAW_DIR, "sinan")
+    #     )
+    #     if downloaded_file:
+    #         file_path = f"{os.path.join(RAW_DIR, 'sinan')}/{downloaded_file.name}.parquet"
+    #         combine_parquet_files(file_path, file_path)
 
 def process_sinan_step(config):
     logging.info("🔬 Processamento SINAN...")

@@ -12,7 +12,7 @@ initial_poisson_space = {
     "colsample_bytree": (0.5, 1.0),
     "reg_alpha": (1e-8, 10.0),
     "reg_lambda": (1e-8, 10.0),
-    #"model_seed": (1, 10**6)
+    # removed model_seed
 }
 
 initial_zip_space = {
@@ -21,7 +21,8 @@ initial_zip_space = {
     "clf_max_depth": (3, 50),
     "clf_subsample": (0.5, 1.0),
     "clf_colsample": (0.5, 1.0),
-    #"clf_model_seed": (1, 10**6),
+    # removed clf_model_seed
+
     "reg_n_estimators": (50, 1000),
     "reg_learning_rate": (0.01, 0.2),
     "reg_max_depth": (3, 50),
@@ -29,7 +30,7 @@ initial_zip_space = {
     "reg_colsample": (0.5, 1.0),
     "reg_alpha": (1e-8, 10.0),
     "reg_lambda": (1e-8, 10.0),
-    #"reg_model_seed": (1, 10**6)
+    # removed reg_model_seed
 }
 
 initial_rf_space = {
@@ -37,15 +38,9 @@ initial_rf_space = {
     "max_depth": (3, 30),
     "min_samples_split": (2, 10),
     "min_samples_leaf": (1, 10),
-    # "max_features": (0, 2),  # categorical encoded
-    # "bootstrap": (0, 1),     # categorical encoded
-    # "model_seed": (1, 10**6)
-}
-
-# Mapeamentos dos categóricos
-rf_categorical_mappings = {
-    "max_features": ["sqrt", "log2", None],
-    "bootstrap": [True, False]
+    # removed max_features (categorical)
+    # removed bootstrap (categorical)
+    # removed model_seed
 }
 
 # Sugestores dinâmicos para Optuna (compatíveis com espaço refinável)
@@ -59,7 +54,6 @@ def suggest_poisson(trial, space):
         "colsample_bytree": trial.suggest_float("colsample_bytree", *space["colsample_bytree"]),
         "reg_alpha": trial.suggest_float("reg_alpha", *space["reg_alpha"], log=True),
         "reg_lambda": trial.suggest_float("reg_lambda", *space["reg_lambda"], log=True),
-        #"model_seed": trial.suggest_int("model_seed", *space["model_seed"])
     }
 
 def suggest_zip(trial, space):
@@ -69,7 +63,7 @@ def suggest_zip(trial, space):
         "clf_max_depth": trial.suggest_int("clf_max_depth", *space["clf_max_depth"]),
         "clf_subsample": trial.suggest_float("clf_subsample", *space["clf_subsample"]),
         "clf_colsample": trial.suggest_float("clf_colsample", *space["clf_colsample"]),
-        #"clf_model_seed": trial.suggest_int("clf_model_seed", *space["clf_model_seed"]),
+
         "reg_n_estimators": trial.suggest_int("reg_n_estimators", *space["reg_n_estimators"]),
         "reg_learning_rate": trial.suggest_float("reg_learning_rate", *space["reg_learning_rate"], log=True),
         "reg_max_depth": trial.suggest_int("reg_max_depth", *space["reg_max_depth"]),
@@ -77,7 +71,6 @@ def suggest_zip(trial, space):
         "reg_colsample": trial.suggest_float("reg_colsample", *space["reg_colsample"]),
         "reg_alpha": trial.suggest_float("reg_alpha", *space["reg_alpha"], log=True),
         "reg_lambda": trial.suggest_float("reg_lambda", *space["reg_lambda"], log=True),
-        #"reg_model_seed": trial.suggest_int("reg_model_seed", *space["reg_model_seed"])
     }
 
 def suggest_rf(trial, space):
@@ -86,7 +79,5 @@ def suggest_rf(trial, space):
         "max_depth": trial.suggest_int("max_depth", *space["max_depth"]),
         "min_samples_split": trial.suggest_int("min_samples_split", *space["min_samples_split"]),
         "min_samples_leaf": trial.suggest_int("min_samples_leaf", *space["min_samples_leaf"]),
-        #"max_features": rf_categorical_mappings["max_features"][trial.suggest_int("max_features", *space["max_features"])],
-        #"bootstrap": rf_categorical_mappings["bootstrap"][trial.suggest_int("bootstrap", *space["bootstrap"])],
-        #"model_seed": trial.suggest_int("model_seed", *space["model_seed"])
+        # max_features / bootstrap now fixed in RF defaults
     }
