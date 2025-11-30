@@ -5,14 +5,16 @@
 Baixa ERA5-Land (horário) mês a mês no formato NetCDF.
 
 Uso:
-  python era5_land_downloader.py \
+  python download_era5.py \
     --start-year 2016 --end-year 2019 \
-    --area "-5.45,-35.6,-6.15,-34.85" \
+    --north -5.45 --south -6.15 --west -35.6 --east -34.85 \
     --file-prefix NATAL \
     --out-dir ./ERA5
 
 Observações:
-- 'area' deve estar no formato: norte, oeste, sul, leste (N, W, S, E).
+- A área é informada agora por 4 parâmetros separados:
+    --north (N), --south (S), --west (W), --east (E)
+- A ordem que o CDS espera internamente é [N, W, S, E].
 - Pula automaticamente arquivos que já existem (use --overwrite para substituir).
 """
 
@@ -33,21 +35,6 @@ DEFAULT_VARIABLES = [
 ALL_HOURS = [f"{h:02d}:00" for h in range(24)]
 
 DATASET = "reanalysis-era5-land"  # mantém o dataset do seu exemplo
-
-
-def parse_area(area_str):
-    """
-    Converte string "N,W,S,E" (com vírgula ou espaço) para lista [N, W, S, E] de floats.
-    """
-    # Permite vírgula OU espaço como separador
-    raw = area_str.replace(",", " ").split()
-    if len(raw) != 4:
-        raise ValueError("Área deve ter exatamente 4 valores: N, W, S, E")
-    try:
-        north, west, south, east = map(float, raw)
-    except Exception as exc:
-        raise ValueError(f"Não foi possível converter 'area' para floats: {exc}")
-    return [north, west, south, east]
 
 
 def days_in_month(year, month):
@@ -78,14 +65,17 @@ def safe_retrieve(client, dataset, request, target_path, max_retries=5, base_sle
             if attempt > max_retries:
                 raise
             sleep_s = base_sleep * (2 ** (attempt - 1))
-            print(f"[WARN] Falha ao baixar ({e}). Tentando novamente em {sleep_s}s "
-                  f"({attempt}/{max_retries})...")
+            print(
+                f"[WARN] Falha ao baixar ({e}). Tentando novamente em {sleep_s}s "
+                f"({attempt}/{max_retries})..."
+            )
             time.sleep(sleep_s)
 
 
 def build_request(year, month, area, variables):
     """
     Monta o dicionário de request para o CDS API.
+    'area' deve ser [N, W, S, E].
     """
     req = {
         "variable": variables,
@@ -93,9 +83,7 @@ def build_request(year, month, area, variables):
         "month": month_str(month),
         "day": days_in_month(year, month),
         "time": ALL_HOURS,
-        # A API do CDS normalmente usa 'format' para NetCDF
         "format": "netcdf",
-        # Mantém download sem arquivar (útil quando disponível)
         "download_format": "unarchived",
         "area": area,  # [N, W, S, E]
     }
@@ -108,22 +96,40 @@ def main():
     )
     parser.add_argument("--start-year", type=int, required=True, help="Ano inicial (ex: 2016)")
     parser.add_argument("--end-year", type=int, required=True, help="Ano final (ex: 2019, inclusive)")
-    parser.add_argument("--area", type=str, required=True,
-                        help="Área no formato 'N,W,S,E' (pode usar espaços em vez de vírgulas)")
+
+    # NOVO: quatro parâmetros separados para a área (N, S, E, W)
+    parser.add_argument("--north", type=float, required=True, help="Latitude norte (N)")
+    parser.add_argument("--south", type=float, required=True, help="Latitude sul (S)")
+    parser.add_argument("--east", type=float, required=True, help="Longitude leste (E)")
+    parser.add_argument("--west", type=float, required=True, help="Longitude oeste (W)")
+
     parser.add_argument("--file-prefix", type=str, required=True, help="Prefixo do arquivo (ex: NATAL)")
     parser.add_argument("--out-dir", type=str, required=True, help="Diretório de saída")
-    parser.add_argument("--overwrite", action="store_true", help="Rebaixar e sobrescrever arquivos existentes")
-    # Opcional: permitir trocar as variáveis mantendo padrão do seu script original
-    parser.add_argument("--variables", type=str, default=",".join(DEFAULT_VARIABLES),
-                        help=f"Lista de variáveis separadas por vírgula. Padrão: {', '.join(DEFAULT_VARIABLES)}")
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Rebaixar e sobrescrever arquivos existentes",
+    )
+    parser.add_argument(
+        "--variables",
+        type=str,
+        default=",".join(DEFAULT_VARIABLES),
+        help=f"Lista de variáveis separadas por vírgula. Padrão: {', '.join(DEFAULT_VARIABLES)}",
+    )
 
     args = parser.parse_args()
 
     if args.start_year > args.end_year:
         raise ValueError("start-year deve ser menor ou igual a end-year.")
 
-    area = parse_area(args.area)
-    variables = [v.strip() for v in args.variables.replace(";", ",").split(",") if v.strip()]
+    # Monta a área no formato esperado pelo CDS: [N, W, S, E]
+    area = [args.north, args.west, args.south, args.east]
+
+    variables = [
+        v.strip()
+        for v in args.variables.replace(";", ",").split(",")
+        if v.strip()
+    ]
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
