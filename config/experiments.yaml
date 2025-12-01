@@ -19,10 +19,26 @@ global:
     - minimize  # Poisson Deviance
 
 experiments:
-  # - dataset: data/datasets/RJ_WEEKLY_CASESONLY/dataset.pickle
-  #   models: [poisson, zip, rf]
-  #   name: RJ_WEEKLY_CASESONLY
-  #   train_config: config/train_rj_weekly_casesonly.yaml
+  - dataset: data/datasets/RN_DAILY/dataset.pickle
+    models: [poisson, zip, rf]
+    train_config: config/train_natal_daily.yaml
+
+  - dataset: data/datasets/RN_WEEKLY/dataset.pickle
+    models: [poisson, zip, rf]
+    train_config: config/train_natal_weekly.yaml
+
+  - dataset: data/datasets/RN_DAILY_CASESONLY/dataset.pickle
+    models: [poisson, zip, rf]
+    train_config: config/train_natal_daily_casesonly.yaml
+
+  - dataset: data/datasets/RN_WEEKLY_CASESONLY/dataset.pickle
+    models: [poisson, zip, rf]
+    train_config: config/train_natal_weekly_casesonly.yaml
+
+  - dataset: data/datasets/RJ_WEEKLY_CASESONLY/dataset.pickle
+    models: [poisson, zip, rf]
+    name: RJ_WEEKLY_CASESONLY
+    train_config: config/train_rj_weekly_casesonly.yaml
 
   - dataset: data/datasets/RJ_DAILY/dataset.pickle
     models: [poisson, zip, rf]
@@ -38,15 +54,3 @@ experiments:
     models: [poisson, zip, rf]
     name: RJ_WEEKLY
     train_config: config/train_rj_weekly.yaml
-
-  # - dataset: data/datasets/RN_DAILY/dataset.pickle
-  #   models: [poisson, zip, rf]
-
-  # - dataset: data/datasets/RN_WEEKLY/dataset.pickle
-  #   models: [poisson, zip, rf]
-
-  # - dataset: data/datasets/RN_DAILY_CASESONLY/dataset.pickle
-  #   models: [poisson, zip, rf]
-
-  # - dataset: data/datasets/RN_WEEKLY_CASESONLY/dataset.pickle
-  #   models: [poisson, zip, rf]
