@@ -620,6 +620,10 @@ if __name__ == "__main__":
         "RJ_DAILY_CASEONLY",
         "RJ_WEEKLY_FULL",
         "RJ_WEEKLY_CASESONLY",
+        "RN_DAILY_FULL",
+        "RN_DAILY_CASEONLY",
+        "RN_WEEKLY_FULL",
+        "RN_WEEKLY_CASESONLY",        
     ]
 
     # Tipos de modelo
@@ -634,6 +638,10 @@ if __name__ == "__main__":
         "RJ_DAILY_CASEONLY": None,
         "RJ_WEEKLY_FULL": None,
         "RJ_WEEKLY_CASESONLY": None,
+        "RN_DAILY_FULL": None,
+        "RN_DAILY_CASEONLY": None,
+        "RN_WEEKLY_FULL": None,
+        "RN_WEEKLY_CASESONLY": None,        
     }
 
     for ds in DATASETS:
