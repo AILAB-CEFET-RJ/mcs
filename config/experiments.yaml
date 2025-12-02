@@ -21,18 +21,22 @@ global:
 experiments:
   - dataset: data/datasets/RN_DAILY/dataset.pickle
     models: [poisson, zip, rf]
+    name: RN_DAILY
     train_config: config/train_natal_daily.yaml
 
   - dataset: data/datasets/RN_WEEKLY/dataset.pickle
     models: [poisson, zip, rf]
+    name: RN_WEEKLY
     train_config: config/train_natal_weekly.yaml
 
   - dataset: data/datasets/RN_DAILY_CASESONLY/dataset.pickle
     models: [poisson, zip, rf]
+    name: RN_DAILY_CASESONLY
     train_config: config/train_natal_daily_casesonly.yaml
 
   - dataset: data/datasets/RN_WEEKLY_CASESONLY/dataset.pickle
     models: [poisson, zip, rf]
+    name: RN_WEEKLY_CASESONLY
     train_config: config/train_natal_weekly_casesonly.yaml
 
   - dataset: data/datasets/RJ_WEEKLY_CASESONLY/dataset.pickle
