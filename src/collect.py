@@ -2,165 +2,135 @@
 # -*- coding: utf-8 -*-
 
 """
-Coleta resultados de métricas (linha Teste) em pastas do tipo:
-RJ_DAILY_CASEONLY_75_rf
+coletar_metrics_otimizados.py
 
-Campos codificados no nome da pasta:
-- Local: RJ ou RN
-- Resolução: DAILY ou WEEKLY
-- Features: CASEONLY ou FULL
-- Seed: número (ex: 75)
-- Modelo: rf, poisson, zip, etc.
+Varre a pasta 'models/', encontra subpastas no formato:
+    RJ_DAILY_CASEONLY_75_rf
+    RJ_WEEKLY_FULL_123_xgb_poisson
+    RN_DAILY_CASESONLY_42_xgb_zip
+etc.
 
-Saídas:
-- detailed_results.csv: uma linha por pasta (seed)
-- aggregated_results.csv: médias por (Local, Resolução, Features, Modelo)
+Para cada pasta que contém um 'metrics.csv':
+    - Lê o arquivo
+    - Seleciona a linha onde Conjunto == 'Teste'
+    - Extrai as métricas
+    - Salva em um DataFrame com colunas:
+        local, resolucao, features, seed, modelo, MSE, RMSE, ...
+
+Ao final:
+    - Salva um CSV com todas as seeds: metrics_test_by_seed.csv
+    - Agrupa por (local, resolucao, features, modelo) e calcula a média
+      das métricas numéricas, salvando em metrics_test_agg.csv
 """
 
 import os
-import re
-import argparse
 import pandas as pd
+from typing import Tuple, Optional
 
-# regex para pastas do tipo RJ_DAILY_CASEONLY_75_rf
-DIR_PATTERN = re.compile(
-    r'^(RJ|RN)_(DAILY|WEEKLY)_(CASEONLY|FULL)_(\d+)_([A-Za-z0-9]+)$'
-)
+MODELS_ROOT = "models"  # ajuste se necessário
 
-def parse_dir_name(dirname: str):
+
+def parse_model_dirname(dirname: str) -> Optional[Tuple[str, str, str, str, str]]:
     """
-    Extrai local, resolução, features, seed e modelo do nome do diretório.
-    Exemplo: RJ_DAILY_CASEONLY_75_rf
+    Espera algo como:
+        RJ_DAILY_CASEONLY_75_rf
+        RN_WEEKLY_FULL_123_xgb_poisson
+
+    Retorna:
+        (local, resolucao, features, seed, modelo)
+
+    Se o nome não bater com o padrão mínimo, retorna None.
     """
-    m = DIR_PATTERN.match(dirname)
-    if not m:
+    parts = dirname.split("_")
+    if len(parts) < 5:
         return None
-    local, freq, features, seed, model = m.groups()
-    return {
-        "local": local,
-        "frequencia": freq,
-        "conjunto": features,
-        "seed": int(seed),
-        "modelo": model,
-    }
 
-def coletar_resultados(root_dir: str):
+    local = parts[0]
+    resolucao = parts[1]
+    features = parts[2]
+    seed = parts[3]
+    modelo = "_".join(parts[4:])  # rf, xgb_poisson, xgb_zip, etc.
+
+    return local, resolucao, features, seed, modelo
+
+
+def main():
     registros = []
 
-    for current_dir, subdirs, files in os.walk(root_dir):
-        dirname = os.path.basename(current_dir)
-        parsed = parse_dir_name(dirname)
+    for dirname in sorted(os.listdir(MODELS_ROOT)):
+        full_dir = os.path.join(MODELS_ROOT, dirname)
+        if not os.path.isdir(full_dir):
+            continue
+
+        parsed = parse_model_dirname(dirname)
         if parsed is None:
+            # pula pastas que não seguem o padrão
             continue
 
-        if "metrics.csv" not in files:
-            # pula diretórios sem metrics.csv
+        local, resolucao, features, seed, modelo = parsed
+
+        metrics_path = os.path.join(full_dir, "metrics.csv")
+        if not os.path.isfile(metrics_path):
             continue
 
-        metrics_path = os.path.join(current_dir, "metrics.csv")
         try:
             df = pd.read_csv(metrics_path)
         except Exception as e:
-            print(f"[AVISO] Não foi possível ler {metrics_path}: {e}")
+            print(f"[AVISO] Erro ao ler {metrics_path}: {e}")
             continue
 
-        # Normaliza a coluna 'Conjunto' e filtra linha 'Teste'
         if "Conjunto" not in df.columns:
-            print(f"[AVISO] Arquivo {metrics_path} não tem coluna 'Conjunto'.")
+            print(f"[AVISO] Arquivo {metrics_path} não possui coluna 'Conjunto'. Ignorando.")
             continue
 
-        df["Conjunto_normalizado"] = df["Conjunto"].astype(str).str.strip().str.lower()
-        df_teste = df[df["Conjunto_normalizado"] == "teste"]
-
+        df_teste = df[df["Conjunto"] == "Teste"]
         if df_teste.empty:
-            print(f"[AVISO] Não encontrei linha 'Teste' em {metrics_path}.")
+            print(f"[AVISO] Nenhuma linha 'Teste' em {metrics_path}. Ignorando.")
             continue
 
-        # assume apenas uma linha 'Teste'
+        # assume que há apenas uma linha de teste
         row = df_teste.iloc[0]
 
         registro = {
-            "pasta": dirname,
-            "local": parsed["local"],
-            "frequencia": parsed["frequencia"],
-            "conjunto": parsed["conjunto"],
-            "seed": parsed["seed"],
-            "modelo": parsed["modelo"],
+            "local": local,
+            "resolucao": resolucao,
+            "features": features,
+            "seed": seed,
+            "modelo": modelo,
         }
 
-        # copia as métricas principais, se existirem
-        for col in [
-            "MSE", "RMSE", "MAE", "R2",
-            "MAPE (ign. zeros)", "SMAPE",
-            "Poisson_Deviance", "Pearson"
-        ]:
-            if col in row.index:
-                registro[col] = row[col]
-            else:
-                registro[col] = None
+        # adiciona todas as colunas numéricas de métricas
+        for col in df.columns:
+            if col == "Conjunto":
+                continue
+            registro[col] = row[col]
 
         registros.append(registro)
 
     if not registros:
-        print("Nenhum resultado encontrado. Verifique o diretório raiz e o padrão das pastas.")
-        return None, None
-
-    df_detalhado = pd.DataFrame(registros)
-
-    # agrega por Local, Frequência, Conjunto e Modelo
-    group_cols = ["local", "frequencia", "conjunto", "modelo"]
-    metric_cols = [
-        "MSE", "RMSE", "MAE", "R2",
-        "MAPE (ign. zeros)", "SMAPE",
-        "Poisson_Deviance", "Pearson"
-    ]
-
-    df_agregado = (
-        df_detalhado
-        .groupby(group_cols)[metric_cols]
-        .mean()
-        .reset_index()
-        .sort_values(group_cols)
-    )
-
-    return df_detalhado, df_agregado
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Coleta métricas (linha Teste) de pastas com modelos otimizados."
-    )
-    parser.add_argument(
-        "--root",
-        type=str,
-        default=".",
-        help="Diretório raiz onde estão as pastas do tipo RJ_DAILY_CASEONLY_75_rf"
-    )
-    parser.add_argument(
-        "--out-detailed",
-        type=str,
-        default="detailed_results.csv",
-        help="Caminho de saída para o CSV com resultados por seed."
-    )
-    parser.add_argument(
-        "--out-agg",
-        type=str,
-        default="aggregated_results.csv",
-        help="Caminho de saída para o CSV com médias por local/frequência/conjunto/modelo."
-    )
-
-    args = parser.parse_args()
-
-    df_detalhado, df_agregado = coletar_resultados(args.root)
-
-    if df_detalhado is None:
+        print("Nenhuma métrica encontrada. Verifique o caminho de 'models/'.")
         return
 
-    df_detalhado.to_csv(args.out_detailed, index=False)
-    df_agregado.to_csv(args.out_agg, index=False)
+    df_all = pd.DataFrame(registros)
 
-    print(f"✅ Resultados detalhados salvos em: {args.out_detailed}")
-    print(f"✅ Resultados agregados salvos em: {args.out_agg}")
+    # Salva métricas por seed
+    out_by_seed = "metrics_test_by_seed.csv"
+    df_all.to_csv(out_by_seed, index=False)
+    print(f"✅ Métricas por seed salvas em: {out_by_seed}")
+
+    # Agrupa por (local, resolucao, features, modelo) e tira média das métricas numéricas
+    group_cols = ["local", "resolucao", "features", "modelo"]
+    metric_cols = [c for c in df_all.columns if c not in group_cols + ["seed"]]
+
+    df_agg = (
+        df_all
+        .groupby(group_cols, as_index=False)[metric_cols]
+        .mean()
+    )
+
+    out_agg = "metrics_test_agg.csv"
+    df_agg.to_csv(out_agg, index=False)
+    print(f"✅ Métricas agregadas (média entre seeds) salvas em: {out_agg}")
 
 
 if __name__ == "__main__":
