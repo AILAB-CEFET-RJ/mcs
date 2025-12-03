@@ -26,11 +26,6 @@ Estrutura esperada:
 
 - data/datasets/<DATASET_NAME>/dataset_ids.pickle
 - models/<DATASET_NAME>_<SEED>_<MODEL>/predictions.csv
-
-Exemplos de pastas de modelo:
-    RJ_DAILY_CASEONLY_75_rf
-    RJ_DAILY_CASEONLY_75_xgb_poisson
-    RJ_DAILY_CASEONLY_75_xgb_zip
 """
 
 import os
@@ -49,6 +44,32 @@ SIDECAR_NAME = "dataset_ids.pickle"
 
 def ensure_dir(path: str):
     os.makedirs(path, exist_ok=True)
+
+
+def prettify_dataset_name(dataset_name: str) -> str:
+    """
+    Converte nomes técnicos como:
+        RJ_DAILY_CASEONLY
+    em nomes amigáveis:
+        Rio de Janeiro · Diário · Apenas Casos
+    """
+    mapping = {
+        "DAILY": "Diário",
+        "WEEKLY": "Semanal",
+        "CASEONLY": "Apenas Casos",
+        "CASESONLY": "Apenas Casos",   # fallback
+        "FULL": "Todas as Features",
+        "RJ": "Rio de Janeiro",
+        "RN": "Rio Grande do Norte",
+    }
+
+    parts = dataset_name.split("_")
+    pretty = []
+
+    for p in parts:
+        pretty.append(mapping.get(p.upper(), p))
+
+    return " · ".join(pretty)
 
 
 # ============================================================
@@ -450,8 +471,8 @@ def plot_comparative_prediction_time(df_dict, dataset_name, outdir, split_name="
     x = df_dict[first_key]["DATE"]
     y_true = df_dict[first_key]["y_true"].values
 
-    # Série real
-    plt.plot(x, y_true, label="Real", linewidth=1.8, color="black")
+    # Série real em cinza
+    plt.plot(x, y_true, label="Real", linewidth=1.8, color="tab:gray")
 
     COLORS = {
         "rf": "tab:blue",
@@ -476,7 +497,8 @@ def plot_comparative_prediction_time(df_dict, dataset_name, outdir, split_name="
             color=COLORS.get(model_key, None),
         )
 
-    plt.title(f"Série temporal comparativa - {dataset_name} ({split_name})")
+    nice_name = prettify_dataset_name(dataset_name)
+    plt.title(f"Série temporal comparativa — {nice_name}")
     plt.xlabel("Data")
     plt.ylabel("Casos (agregado por data)")
     plt.grid(True, alpha=0.3)
@@ -532,9 +554,11 @@ def plot_comparative_scatter(df_dict, dataset_name, outdir, split_name="Teste"):
             label=LABELS.get(model_key, model_key),
         )
 
-    plt.plot([min_val, max_val], [min_val, max_val], "k--", linewidth=1)
+    # linha de referência y=x em cinza mais suave
+    plt.plot([min_val, max_val], [min_val, max_val], color="0.5", linestyle="--", linewidth=1)
 
-    plt.title(f"Scatter comparativo Real vs Predito - {dataset_name} ({split_name})")
+    nice_name = prettify_dataset_name(dataset_name)
+    plt.title(f"Scatter Real vs Predito — {nice_name}")
     plt.xlabel("Real (agregado por data)")
     plt.ylabel("Predito (média, agregado por data)")
     plt.grid(True, alpha=0.3)
@@ -604,6 +628,36 @@ def process_model(models_dir: str,
 
     return df_date
 
+def compute_total_cases_summary(df_models: dict, dataset_name: str):
+    """
+    Recebe um dict com:
+        {
+            "rf": df_rf,
+            "xgb_poisson": df_xp,
+            "xgb_zip": df_xz
+        }
+    Cada df deve conter: y_true, y_pred_mean.
+
+    Retorna um dict com totais reais e preditos.
+    """
+
+    summary = {"dataset": dataset_name}
+
+    # Total real (o mesmo para todos os modelos)
+    first_key = list(df_models.keys())[0]
+    total_real = df_models[first_key]["y_true"].sum()
+    summary["total_real"] = float(total_real)
+
+    for model_key, df in df_models.items():
+        total_pred = df["y_pred_mean"].sum()
+
+        summary[f"{model_key}_pred"] = float(total_pred)
+        summary[f"{model_key}_abs_error"] = float(total_pred - total_real)
+        summary[f"{model_key}_rel_error"] = float((total_pred - total_real) / total_real * 100)
+
+    return summary
+
+
 
 # ============================================================
 # Main
@@ -614,7 +668,7 @@ if __name__ == "__main__":
     MODELS_DIR = "models"
     DATASETS_ROOT = "data/datasets"
 
-    # Seus 4 datasets principais
+    # Seus 8 datasets principais
     DATASETS = [
         "RJ_DAILY_FULL",
         "RJ_DAILY_CASEONLY",
@@ -623,7 +677,7 @@ if __name__ == "__main__":
         "RN_DAILY_FULL",
         "RN_DAILY_CASEONLY",
         "RN_WEEKLY_FULL",
-        "RN_WEEKLY_CASESONLY",        
+        "RN_WEEKLY_CASESONLY",
     ]
 
     # Tipos de modelo
@@ -632,7 +686,6 @@ if __name__ == "__main__":
     # Regra de resample temporal:
     # - Para datasets DIÁRIOS, pode manter None (não reamostrar)
     # - Para WEEKLY, também pode deixar None (já está semanal)
-    # - Se quiser reamostrar diário -> semanal, use "W"
     RESAMPLE_RULES = {
         "RJ_DAILY_FULL": None,
         "RJ_DAILY_CASEONLY": None,
@@ -641,7 +694,7 @@ if __name__ == "__main__":
         "RN_DAILY_FULL": None,
         "RN_DAILY_CASEONLY": None,
         "RN_WEEKLY_FULL": None,
-        "RN_WEEKLY_CASESONLY": None,        
+        "RN_WEEKLY_CASESONLY": None,
     }
 
     for ds in DATASETS:
@@ -669,6 +722,24 @@ if __name__ == "__main__":
             try:
                 plot_comparative_prediction_time(df_models, ds, MODELS_DIR, split_name="Teste")
                 plot_comparative_scatter(df_models, ds, MODELS_DIR, split_name="Teste")
+
+                summary = compute_total_cases_summary(df_models, ds)
+                print("\n---- TOTAL DE CASOS ----")
+                print(summary)
+
+                # salvar CSV acumulando resultados
+                totals_out = os.path.join(MODELS_DIR, "total_cases_summary.csv")
+                df_out = pd.DataFrame([summary])
+
+                if not os.path.exists(totals_out):
+                    df_out.to_csv(totals_out, index=False)
+                else:
+                    df_prev = pd.read_csv(totals_out)
+                    df_new = pd.concat([df_prev, df_out], ignore_index=True)
+                    df_new.to_csv(totals_out, index=False)
+
+                print(f"Resumo numérico salvo em {totals_out}")
+
             except Exception as e:
                 print(f"[ERRO] Falha ao gerar gráficos comparativos para {ds}: {e}")
 
