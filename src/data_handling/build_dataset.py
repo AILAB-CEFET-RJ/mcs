@@ -1,4 +1,16 @@
-# src/data/dataset_builder_v3.py
+"""Dataset builder.
+
+Compatibilidade:
+- Mantém o modo antigo (FULL/unidade específica + ERA5) como padrão.
+- Adiciona modo de prova de conceito: clusters por proximidade em torno de uma
+  estação do INMET, consumindo o aggregated.parquet gerado pelo legacy.
+
+Modos (via YAML):
+
+mode:
+  aggregation: unit | cluster
+  meteo: era5 | inmet_legacy
+"""
 
 import os
 import argparse
@@ -15,6 +27,14 @@ import json
 
 from features.feature_config_parser import FeatureConfig
 from features.feature_engineering import create_new_features
+
+# === NOVO: providers/recipes (PoC INMET + clusters) ===
+try:
+    from providers.inmet_legacy_aggregated_provider import InmetLegacyAggregatedProvider
+    from recipes.cluster_recipe import ClusterRecipe
+except Exception:
+    InmetLegacyAggregatedProvider = None
+    ClusterRecipe = None
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -74,7 +94,8 @@ def extract_era5_data(ds, lat, lon, date, config):
     return result
 
 # Processamento total
-def build_dataset(config_path, sinan_path, cnes_path, era5_path, output_path, id_unidade):
+def build_dataset_era5(config_path, sinan_path, cnes_path, era5_path, output_path, id_unidade):
+    """Modo antigo: por unidade + ERA5."""
     config = FeatureConfig(config_path)
 
     logging.info("🔧 Lendo dados...")
@@ -170,6 +191,105 @@ def build_dataset(config_path, sinan_path, cnes_path, era5_path, output_path, id
     logging.info(f"✅ Dataset final salvo em: {output_path}")
 
 
+def build_dataset_clusters_inmet_legacy(
+    config_path,
+    sinan_path,
+    cnes_path,
+    inmet_aggregated_parquet,
+    inmet_station_id,
+    station_lat,
+    station_lon,
+    level_edges_km,
+    clusters,
+    output_base,
+):
+    """PoC: cria datasets agregando unidades ao redor de uma estação INMET.
+
+    Entrada meteorológica: aggregated.parquet produzido pelo legacy.
+    """
+    if InmetLegacyAggregatedProvider is None or ClusterRecipe is None:
+        raise RuntimeError(
+            "Módulos providers/ e recipes/ não encontrados. "
+            "Aplique o patch completo ou verifique o PYTHONPATH."
+        )
+
+    config = FeatureConfig(config_path)
+
+    logging.info("🔧 [cluster+inmet_legacy] Lendo SINAN + CNES...")
+    sinan_df = pd.read_parquet(sinan_path)
+    sinan_df["DT_NOTIFIC"] = pd.to_datetime(sinan_df["DT_NOTIFIC"])
+    sinan_df["ID_UNIDADE"] = sinan_df["ID_UNIDADE"].astype(str)
+
+    cnes_df = pd.read_parquet(cnes_path)
+    cnes_df["CNES"] = cnes_df["CNES"].astype(str)
+
+    recipe = ClusterRecipe(
+        station_lat=station_lat,
+        station_lon=station_lon,
+        level_edges_km=level_edges_km,
+        clusters=clusters,
+    )
+
+    cluster_cases = recipe.make_clusters(sinan_df, cnes_df, weekly=config.weekly)
+
+    met_provider = InmetLegacyAggregatedProvider(
+        aggregated_parquet_path=inmet_aggregated_parquet,
+        station_id=str(inmet_station_id),
+    )
+    met_df = met_provider.get_series(weekly=config.weekly)
+
+    train_date = pd.to_datetime(config.train_split)
+    val_date = pd.to_datetime(config.val_split)
+
+    for cluster_name, df_cases in cluster_cases.items():
+        logging.info(f"🧩 [cluster] Montando dataset: {cluster_name}")
+
+        df = df_cases.merge(met_df, on="DT_NOTIFIC", how="left")
+
+        train = df[df["DT_NOTIFIC"] < train_date]
+        val = df[(df["DT_NOTIFIC"] >= train_date) & (df["DT_NOTIFIC"] < val_date)]
+        test = df[df["DT_NOTIFIC"] >= val_date]
+
+        out_dir = os.path.join(output_base, cluster_name)
+        os.makedirs(out_dir, exist_ok=True)
+
+        logging.info("🧪 Feature engineering...")
+        X_train, y_train, ids_train = create_new_features(train, "train", config, out_dir)
+        X_val, y_val, ids_val = create_new_features(val, "val", config, out_dir)
+        X_test, y_test, ids_test = create_new_features(test, "test", config, out_dir)
+
+        logging.info("⚖️ Normalizando...")
+        scaler = StandardScaler()
+        X_train = scaler.fit_transform(X_train)
+        X_val = scaler.transform(X_val)
+        X_test = scaler.transform(X_test)
+
+        logging.info("💾 Salvando pickle...")
+        with open(os.path.join(out_dir, "dataset.pickle"), "wb") as f:
+            pickle.dump((X_train, y_train, X_val, y_val, X_test, y_test), f)
+
+        ids_payload = {"train": ids_train, "val": ids_val, "test": ids_test}
+        with open(os.path.join(out_dir, "dataset_ids.pickle"), "wb") as f:
+            pickle.dump(ids_payload, f)
+
+        meta = {
+            "mode": {"aggregation": "cluster", "meteo": "inmet_legacy"},
+            "cluster_name": cluster_name,
+            "station": {
+                "id": str(inmet_station_id),
+                "lat": station_lat,
+                "lon": station_lon,
+            },
+            "level_edges_km": level_edges_km,
+            "clusters": clusters,
+            "sidecars": ["dataset_ids.pickle", "dataset_meta.json"],
+        }
+        with open(os.path.join(out_dir, "dataset_meta.json"), "w", encoding="utf-8") as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
+
+        logging.info(f"✅ Cluster dataset salvo em: {out_dir}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Arboseer Dataset Builder v3")
     parser.add_argument("--config", required=True)
@@ -185,11 +305,46 @@ if __name__ == "__main__":
     output_path = paths.get("output")
     id_unidade = paths.get("unidade", "FULL")
 
-    build_dataset(
-        config_path=args.config,
-        sinan_path=sinan_path,
-        cnes_path=cnes_path,
-        era5_path=era5_path,
-        output_path=output_path,
-        id_unidade=id_unidade
-    )
+    mode = full_config.get("mode", {})
+    aggregation = (mode.get("aggregation") or "unit").lower()
+    meteo = (mode.get("meteo") or "era5").lower()
+
+    if aggregation == "unit" and meteo == "era5":
+        build_dataset_era5(
+            config_path=args.config,
+            sinan_path=sinan_path,
+            cnes_path=cnes_path,
+            era5_path=era5_path,
+            output_path=output_path,
+            id_unidade=id_unidade,
+        )
+    elif aggregation == "cluster" and meteo in ("inmet_legacy", "inmet-legacy"):
+        cluster_cfg = full_config.get("cluster", {})
+        st = cluster_cfg.get("station", {})
+        station_lat = float(st.get("lat"))
+        station_lon = float(st.get("lon"))
+        level_edges_km = cluster_cfg.get("level_edges_km", [5, 10, 20])
+        clusters = cluster_cfg.get("clusters", [[1], [1, 2], [1, 2, 3]])
+
+        inmet_aggregated_parquet = paths.get("inmet_aggregated_parquet")
+        inmet_station_id = paths.get("inmet_station_id")
+        if not inmet_aggregated_parquet or not inmet_station_id:
+            raise ValueError(
+                "Para mode.cluster + inmet_legacy, informe paths.inmet_aggregated_parquet "
+                "e paths.inmet_station_id no YAML."
+            )
+
+        build_dataset_clusters_inmet_legacy(
+            config_path=args.config,
+            sinan_path=sinan_path,
+            cnes_path=cnes_path,
+            inmet_aggregated_parquet=inmet_aggregated_parquet,
+            inmet_station_id=inmet_station_id,
+            station_lat=station_lat,
+            station_lon=station_lon,
+            level_edges_km=level_edges_km,
+            clusters=clusters,
+            output_base=output_path,
+        )
+    else:
+        raise ValueError(f"Modo não suportado: aggregation={aggregation}, meteo={meteo}")
