@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(head -50)",
+      "PowerShell(Get-ChildItem \"c:\\\\@work\\\\mcs\\\\data\\\\raw\\\\inmet\\\\\" | Select-Object Name, @{N='Linhas';E={\\(Get-Content $_.FullName | Measure-Object -Line\\).Lines}} | Format-Table -AutoSize; Get-ChildItem \"c:\\\\@work\\\\mcs\\\\data\\\\raw\\\\redemet\\\\\" | Select-Object Name, @{N='Linhas';E={\\(Get-Content $_.FullName | Measure-Object -Line\\).Lines}} | Format-Table -AutoSize)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\@work\\\\mcs\" | Select-Object Name, @{Name=\"Type\"; Expression={if \\($_.PSIsContainer\\) { \"DIR\" } else { \"FILE\" }}} | Format-Table -AutoSize)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\@work\\\\mcs\\\\data\" -Recurse | Sort-Object FullName | Select-Object FullName, @{Name=\"Type\"; Expression={if \\($_.PSIsContainer\\) { \"DIR\" } else { \"FILE\" }}}, @{Name=\"Size\\(KB\\)\"; Expression={if \\($_.PSIsContainer\\) { \"-\" } else { [math]::Round\\($_.Length / 1KB, 2\\) }}}  | Format-Table -AutoSize)",
+      "Bash(python -c ' *)",
+      "Bash(python src/ingestion/download/download_inmet.py --malha1-only --out-dir data/raw/inmet)",
+      "Bash(python src/ingestion/download/download_redemet.py --malha1-only --out-dir data/raw/redemet)",
+      "Bash(python src/data_handling/era5/inspect_era5.py --file data/raw/era5/RJ_1997_2024.nc --check-bbox -23.5 -21.7 -44.9 -40.9 --time-slice 2013-12-30 2023-12-31)",
+      "Bash(python -c \"import sys; sys.stdout.reconfigure\\(encoding='utf-8'\\)\")",
+      "Bash(python -c \"import sys; [print\\(l.encode\\('ascii','replace'\\).decode\\(\\)\\) for l in sys.stdin]\")",
+      "Bash(set PYTHONUTF8=1)",
+      "Bash(python src/data_handling/era5/process_era5_weekly.py --file data/raw/era5/RJ_1997_2024.nc --start 2013-12-30 --end 2023-12-31 --out data/processed/era5/RJ_weekly.npz)",
+      "Bash(python src/data_handling/stations/aggregate_stations_weekly.py --city RJ --inmet-malha1 data/raw/inmet/malha1_inmet_diario.csv --redemet-malha1 data/raw/redemet/malha1_redemet_diario.csv --out-dir data/processed/stations)",
+      "Bash(python src/data_handling/stations/interpolate_to_grid.py --stations data/processed/stations/RJ_stations_weekly.csv --era5 data/processed/era5/RJ_weekly.npz --out data/processed/stations/RJ_grid_weekly.npz --city RJ --alpha 2.0 --cutoff-km 150)",
+      "Bash(python src/data_handling/stconvs2s/build_tensors.py --grid data/processed/stations/RJ_grid_weekly.npz --cnes data/processed/cnes/STRJ2401.parquet --cases data/datasets/RJ_WEEKLY/dataset_ids.pickle --out-dir data/datasets/RJ_STCONVS2S --lookback 4 --train-end 2017-12-31 --val-end 2021-12-31)"
+    ]
+  }
+}
