@@ -1,0 +1,14 @@
+2026-06-30 21:30:05,322 INFO train_stconv_s2s_e1: Output dir: arboseer\models\_smoke_stconv_s2s_e1
+2026-06-30 21:30:05,324 INFO train_stconv_s2s_e1: Device solicitado: cpu
+2026-06-30 21:30:05,324 INFO rj_dengue_clean_dataset: Carregando split 'train' de C:\Users\ramon.garcia\Documents\Claude\Projects\SLR\arboseer\data\datasets\RJ_E1_T1_clean
+2026-06-30 21:30:05,518 INFO rj_dengue_clean_dataset:   train: 2838 dias, 2783 anchors (de 2014-04-22 a 2021-12-03)
+2026-06-30 21:30:05,518 INFO rj_dengue_clean_dataset: Carregando split 'val' de C:\Users\ramon.garcia\Documents\Claude\Projects\SLR\arboseer\data\datasets\RJ_E1_T1_clean
+2026-06-30 21:30:05,588 INFO rj_dengue_clean_dataset:   val: 281 dias, 226 anchors (de 2022-04-22 a 2022-12-03)
+2026-06-30 21:30:05,588 INFO train_stconv_s2s_e1: Modo overfit: usando as primeiras 1 amostras de treino também como validação
+2026-06-30 21:30:05,605 INFO train_stconv_s2s_e1: Mascara ativa: 25/231 celulas
+2026-06-30 21:30:05,641 INFO train_stconv_s2s_e1: Modelo: STConvS2SGrid
+2026-06-30 21:30:05,643 INFO train_stconv_s2s_e1: Parametros treinaveis: 2529
+2026-06-30 21:30:05,745 INFO train_stconv_s2s_e1: Contrato modelo: X (1, 45, 28, 11, 21) -> pred (1, 1, 28, 11, 21); target (1, 1, 28, 11, 21)
+2026-06-30 21:30:23,700 INFO train_stconv_s2s_e1: epoch=001 train_loss=0.108530 val_loss=0.012917 val_mae_active=0.1796 val_mae_h28=0.0953
+2026-06-30 21:30:23,755 INFO train_stconv_s2s_e1: Concluido. best_val_loss=0.012917
+2026-06-30 21:30:23,755 INFO train_stconv_s2s_e1: Artefatos: arboseer\models\_smoke_stconv_s2s_e1

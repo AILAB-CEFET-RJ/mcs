@@ -1,0 +1,22 @@
+2026-07-01 03:33:41,870 INFO train_stconv_s2s_e1: Output dir: C:\Users\ramon.garcia\Documents\Claude\Projects\SLR\arboseer\models\RJ_E1_T1_clean_stconv_s2s_train_20260701_033341
+2026-07-01 03:33:41,873 INFO train_stconv_s2s_e1: Device solicitado: cpu
+2026-07-01 03:33:41,873 INFO rj_dengue_clean_dataset: Carregando split 'train' de C:\Users\ramon.garcia\Documents\Claude\Projects\SLR\arboseer\data\datasets\RJ_E1_T1_clean
+2026-07-01 03:33:42,224 INFO rj_dengue_clean_dataset:   train: 2838 dias, 2783 anchors (de 2014-04-22 a 2021-12-03)
+2026-07-01 03:33:42,226 INFO rj_dengue_clean_dataset: Carregando split 'val' de C:\Users\ramon.garcia\Documents\Claude\Projects\SLR\arboseer\data\datasets\RJ_E1_T1_clean
+2026-07-01 03:33:42,266 INFO rj_dengue_clean_dataset:   val: 281 dias, 226 anchors (de 2022-04-22 a 2022-12-03)
+2026-07-01 03:33:42,293 INFO train_stconv_s2s_e1: Mascara ativa: 25/231 celulas
+2026-07-01 03:33:42,338 INFO train_stconv_s2s_e1: Modelo: STConvS2SGrid
+2026-07-01 03:33:42,340 INFO train_stconv_s2s_e1: Parametros treinaveis: 7745
+2026-07-01 03:33:42,521 INFO train_stconv_s2s_e1: Contrato modelo: X (4, 45, 28, 11, 21) -> pred (4, 1, 28, 11, 21); target (4, 1, 28, 11, 21)
+2026-07-01 03:35:10,260 INFO train_stconv_s2s_e1: epoch=001 train_loss=0.021792 val_loss=0.020442 val_mae_active=0.5171 val_mae_h28=0.0560
+2026-07-01 03:36:32,971 INFO train_stconv_s2s_e1: epoch=002 train_loss=0.015816 val_loss=0.017185 val_mae_active=0.4818 val_mae_h28=0.0484
+2026-07-01 03:37:46,732 INFO train_stconv_s2s_e1: epoch=003 train_loss=0.014669 val_loss=0.014704 val_mae_active=0.4726 val_mae_h28=0.0572
+2026-07-01 03:38:47,715 INFO train_stconv_s2s_e1: epoch=004 train_loss=0.013820 val_loss=0.015213 val_mae_active=0.4718 val_mae_h28=0.0486
+2026-07-01 03:40:05,905 INFO train_stconv_s2s_e1: epoch=005 train_loss=0.013576 val_loss=0.014721 val_mae_active=0.4651 val_mae_h28=0.0476
+2026-07-01 03:41:17,322 INFO train_stconv_s2s_e1: epoch=006 train_loss=0.012828 val_loss=0.015317 val_mae_active=0.4785 val_mae_h28=0.0483
+2026-07-01 03:42:26,983 INFO train_stconv_s2s_e1: epoch=007 train_loss=0.012800 val_loss=0.014289 val_mae_active=0.4641 val_mae_h28=0.0480
+2026-07-01 03:43:38,324 INFO train_stconv_s2s_e1: epoch=008 train_loss=0.012493 val_loss=0.014203 val_mae_active=0.4634 val_mae_h28=0.0493
+2026-07-01 03:44:48,319 INFO train_stconv_s2s_e1: epoch=009 train_loss=0.012050 val_loss=0.015819 val_mae_active=0.4743 val_mae_h28=0.0482
+2026-07-01 03:46:02,150 INFO train_stconv_s2s_e1: epoch=010 train_loss=0.012034 val_loss=0.015758 val_mae_active=0.4745 val_mae_h28=0.0471
+2026-07-01 03:46:02,161 INFO train_stconv_s2s_e1: Concluido. best_val_loss=0.014203
+2026-07-01 03:46:02,162 INFO train_stconv_s2s_e1: Artefatos: C:\Users\ramon.garcia\Documents\Claude\Projects\SLR\arboseer\models\RJ_E1_T1_clean_stconv_s2s_train_20260701_033341

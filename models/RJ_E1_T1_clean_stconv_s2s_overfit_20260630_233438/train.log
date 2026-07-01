@@ -1,0 +1,18 @@
+2026-06-30 23:34:38,573 INFO train_stconv_s2s_e1: Output dir: C:\Users\ramon.garcia\Documents\Claude\Projects\SLR\arboseer\models\RJ_E1_T1_clean_stconv_s2s_overfit_20260630_233438
+2026-06-30 23:34:38,575 INFO train_stconv_s2s_e1: Device solicitado: cpu
+2026-06-30 23:34:38,575 INFO rj_dengue_clean_dataset: Carregando split 'train' de C:\Users\ramon.garcia\Documents\Claude\Projects\SLR\arboseer\data\datasets\RJ_E1_T1_clean
+2026-06-30 23:34:38,868 INFO rj_dengue_clean_dataset:   train: 2838 dias, 2783 anchors (de 2014-04-22 a 2021-12-03)
+2026-06-30 23:34:38,868 INFO rj_dengue_clean_dataset: Carregando split 'val' de C:\Users\ramon.garcia\Documents\Claude\Projects\SLR\arboseer\data\datasets\RJ_E1_T1_clean
+2026-06-30 23:34:38,887 INFO rj_dengue_clean_dataset:   val: 281 dias, 226 anchors (de 2022-04-22 a 2022-12-03)
+2026-06-30 23:34:38,889 INFO train_stconv_s2s_e1: Modo overfit: usando as primeiras 1 amostras de treino também como validação
+2026-06-30 23:34:38,912 INFO train_stconv_s2s_e1: Mascara ativa: 25/231 celulas
+2026-06-30 23:34:38,943 INFO train_stconv_s2s_e1: Modelo: STConvS2SGrid
+2026-06-30 23:34:38,944 INFO train_stconv_s2s_e1: Parametros treinaveis: 2529
+2026-06-30 23:34:39,064 INFO train_stconv_s2s_e1: Contrato modelo: X (1, 45, 28, 11, 21) -> pred (1, 1, 28, 11, 21); target (1, 1, 28, 11, 21)
+2026-06-30 23:34:43,996 INFO train_stconv_s2s_e1: epoch=001 train_loss=0.108530 val_loss=0.012921 val_mae_active=0.1797 val_mae_h28=0.0953
+2026-06-30 23:34:44,071 INFO train_stconv_s2s_e1: epoch=002 train_loss=0.085832 val_loss=0.013648 val_mae_active=0.1857 val_mae_h28=0.1001
+2026-06-30 23:34:44,107 INFO train_stconv_s2s_e1: epoch=003 train_loss=0.071134 val_loss=0.014286 val_mae_active=0.1907 val_mae_h28=0.1051
+2026-06-30 23:34:44,133 INFO train_stconv_s2s_e1: epoch=004 train_loss=0.070599 val_loss=0.014805 val_mae_active=0.1942 val_mae_h28=0.1095
+2026-06-30 23:34:44,163 INFO train_stconv_s2s_e1: epoch=005 train_loss=0.041231 val_loss=0.015002 val_mae_active=0.1955 val_mae_h28=0.1116
+2026-06-30 23:34:44,168 INFO train_stconv_s2s_e1: Concluido. best_val_loss=0.012921
+2026-06-30 23:34:44,170 INFO train_stconv_s2s_e1: Artefatos: C:\Users\ramon.garcia\Documents\Claude\Projects\SLR\arboseer\models\RJ_E1_T1_clean_stconv_s2s_overfit_20260630_233438
