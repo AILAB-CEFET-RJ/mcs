@@ -1,0 +1,81 @@
+mode:
+  aggregation: cluster
+  meteo: inmet_legacy
+
+dataset:
+  weekly: false
+
+paths:
+  sinan: data/processed/sinan/DENG33.parquet
+  cnes: data/processed/cnes/STRJ2401.parquet
+
+  # INMET legacy (produto do legacy/arboseer/src/unify_inmet.py)
+  inmet_aggregated_parquet: data/processed/inmet/aggregated.parquet
+  inmet_station_id: A621
+
+  # Saída base (serão criadas subpastas por cluster)
+  output: data/datasets/RJ_DAILY_INMET_CLUSTERS
+
+  # Mantém compatibilidade com sua config (se o builder usar esse campo)
+  unidade: FULL
+
+cluster:
+  # Centro do cluster (pode ser diferente da estação)
+  station:
+    lat: -22.86138888
+    lon: -43.41138888
+
+  # N1<=5km, N2<=10km, N3<=20km, N4>20km (descarta N4)
+  level_edges_km: [5, 10, 20]
+
+  # 3 clusters do PoC:
+  # C1: nível 1
+  # C2: níveis 1+2
+  # C3: níveis 1+2+3
+  clusters:
+    - [1]
+    - [1, 2]
+    - [1, 2, 3]
+
+preproc:
+  SLIDING_WINDOW_SIZE: 7
+  MIN_DATE: 2014-01-01
+  MAX_DATE: 2023-12-31
+  TRAIN_SPLIT: 2018-01-01
+  VAL_SPLIT: 2022-01-01
+
+features:
+  enable:
+    cases_windows: true
+    cases_accumulators: true
+    cases_lags: true
+
+    ideal_temp: true
+    extreme_temp: true
+    significant_rain: true
+    extreme_rain: true
+    temp_range: true
+    week_of_year: true
+    windows: true
+
+    raw_features:
+      tem_avg: true
+      tem_min: true
+      tem_max: true
+      rain: true
+
+      # INMET legacy aggregated (exemplo enviado) não tem RH:
+      rh_avg: false
+      rh_min: false
+      rh_max: false
+
+  windows: [7, 14, 21, 28]
+  lags: 6
+
+  temp:
+    ideal_temp_range: [21, 27]
+    extreme_temp_range: [14, 38]
+
+  rain:
+    significant_range: [0.010, 0.150]
+    extreme_threshold: 0.150
