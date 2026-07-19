@@ -6,6 +6,7 @@ paths:
   cnes: data/processed/cnes/STRJ2401.parquet
   era5: data/raw/era5/RJ_1997_2024.nc
   output: data/datasets/RJ_DAILY_CASESONLY
+  support_dataset: data/datasets/RJ_DAILY
   unidade: FULL
 
 preproc:

@@ -11,7 +11,10 @@ from evaluation.plots import plot_learning_curve_external, plot_prediction_distr
 from models.models import get_rf
 
 
-def train_and_evaluate(name, model, X_train, y_train, X_val, y_val, X_test, y_test, outdir, feature_dictionary):   
+def train_and_evaluate(
+    name, model, X_train, y_train, X_val, y_val, X_test, y_test,
+    outdir, feature_dictionary, generate_learning_curve=True,
+):
     
     print(f"Ajustando modelo...")
     # RandomForest não usa eval_set
@@ -32,8 +35,9 @@ def train_and_evaluate(name, model, X_train, y_train, X_val, y_val, X_test, y_te
     print(f"Salvando métricas de treino...")
     save_all_metrics(metrics_dict, outdir)
     
-    print(f"Plotando curva de aprendizado...")
-    plot_learning_curve_external(clone(model), X_train, y_train, X_val, y_val, outdir, "Random Forest")
+    if generate_learning_curve:
+        print(f"Plotando curva de aprendizado...")
+        plot_learning_curve_external(clone(model), X_train, y_train, X_val, y_val, outdir, "Random Forest")
     
     print(f"Plotando distribuição de predições...")
     plot_prediction_distribution(y_pred_test, name, outdir)    

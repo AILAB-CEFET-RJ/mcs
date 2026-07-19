@@ -6,6 +6,7 @@ paths:
   cnes: data/processed/cnes/STRN2412.parquet
   era5: data/raw/era5/NATAL_2014_2019.nc
   output: data/datasets/RN_DAILY_CASESONLY
+  support_dataset: data/datasets/RN_DAILY
   unidade: FULL
 
 preproc:

@@ -20,6 +20,11 @@ class ExperimentConfig:
         self.use_fixed_seed = self.global_config.get("use_fixed_seed", False)
         self.trials_per_round = self.global_config.get("trials_per_round", [50])
         self.runs_dir = self.global_config.get("runs_dir", "runs")
+        self.run_label = self.global_config.get("run_label", "stage2_corrected")
+        self.output_tag = self.global_config.get("output_tag", "OPTIMIZED_CORRECTED")
+        self.final_seeds = self.global_config.get(
+            "final_seeds", [109, 220, 222, 241, 149, 107, 75, 248, 254, 140]
+        )
         self.directions = self.global_config.get("directions", ["minimize"])
 
         try:

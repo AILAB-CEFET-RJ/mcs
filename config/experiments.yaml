@@ -6,6 +6,9 @@ global:
   n_jobs_xgb: 8
   early_stopping_rounds: 20
   runs_dir: "runs"
+  run_label: "stage3_method_corrected_v2"
+  output_tag: "METHOD_CORRECTED_V2"
+  final_seeds: [109, 220, 222, 241, 149, 107, 75, 248, 254, 140]
   trials_per_round: [10, 10, 10]
 
   directions:
@@ -15,7 +18,7 @@ global:
     - minimize  # -R²
     - minimize  # MAPE
     - minimize  # SMAPE
-    - minimize  # -Rho
+    - minimize  # -Spearman rho
     - minimize  # Poisson Deviance
 
 experiments:

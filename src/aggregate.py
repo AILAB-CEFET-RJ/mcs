@@ -36,6 +36,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 SIDECAR_NAME = "dataset_ids.pickle"
+MODEL_RUN_TAG = "OPTIMIZED_CORRECTED"
 
 
 # ============================================================
@@ -87,18 +88,11 @@ def parse_model_folder_name(folder_name: str):
       seed         = '75'
       model_type   = 'rf' / 'xgb_poisson' / 'xgb_zip'
     """
-    parts = folder_name.split("_")
-
-    if len(parts) < 4:
-        raise ValueError(f"Nome de pasta inesperado: {folder_name}")
-
-    dataset_name = "_".join(parts[0:3])  # RJ_DAILY_CASEONLY
-    seed = parts[3]
-
-    model_type = parts[4]
-    if len(parts) >= 6:
-        model_type = parts[4] + "_" + parts[5]
-
+    marker = f"_{MODEL_RUN_TAG}_"
+    if marker not in folder_name:
+        raise ValueError(f"Nome de pasta sem a marca {MODEL_RUN_TAG}: {folder_name}")
+    dataset_name, remainder = folder_name.split(marker, 1)
+    seed, model_type = remainder.split("_", 1)
     return dataset_name, seed, model_type
 
 
@@ -108,7 +102,11 @@ def find_model_folders(models_dir: str, dataset_name: str, model_type: str):
       models/<DATASET_NAME>_*_<model_type>
     Ex: models/RJ_DAILY_CASEONLY_*_rf
     """
-    pattern = os.path.join(models_dir, f"{dataset_name}_*_{model_type}")
+    # Restringe a agregacao aos modelos finais da Etapa 2. Sem essa marca,
+    # execucoes antigas, baseline e smoke tests seriam misturados no ensemble.
+    pattern = os.path.join(
+        models_dir, f"{dataset_name}_{MODEL_RUN_TAG}_*_{model_type}"
+    )
     folders = sorted(glob.glob(pattern))
     return folders
 
@@ -290,11 +288,11 @@ def aggregate_by_date(df: pd.DataFrame, resample_rule: str = None):
 
         y_true_agg(date)       = sum(y_true)
         y_pred_mean_agg(date)  = sum(y_pred_mean)
-        var_agg(date)          = sum( (y_pred_std)^2 )
-        y_pred_std_agg(date)   = sqrt(var_agg)
+        Para cada semente, as previsões são primeiro somadas entre unidades;
+        média e desvio-padrão são então calculados entre esses totais.
 
     Se resample_rule não for None (ex. 'W'), faz resample no tempo
-    somando períodos e propagando variância.
+    somando períodos dentro de cada semente antes de recalcular a dispersão.
     """
     if "DATE" not in df.columns:
         raise ValueError("DataFrame não possui coluna 'DATE' para agregar por data.")
@@ -302,26 +300,37 @@ def aggregate_by_date(df: pd.DataFrame, resample_rule: str = None):
     tmp = df.copy()
     tmp = tmp.dropna(subset=["y_true", "y_pred_mean"])
 
-    # variância = std^2
-    tmp["var_pred"] = (tmp["y_pred_std"] ** 2).fillna(0.0)
-
-    # agrega por DATE (soma unidades naturalmente)
-    grouped = tmp.groupby("DATE").agg({
-        "y_true": "sum",
-        "y_pred_mean": "sum",
-        "var_pred": "sum",
-    }).sort_index()
-
-    grouped["y_pred_std"] = np.sqrt(grouped["var_pred"])
-    grouped = grouped.drop(columns=["var_pred"])
+    pred_cols = [c for c in tmp.columns if c.startswith("y_pred_seed_")]
+    if pred_cols:
+        # Agrega cada execução antes de calcular a dispersão entre sementes.
+        # Isso preserva a covariância entre previsões de unidades distintas.
+        aggregation = {"y_true": "sum", **{col: "sum" for col in pred_cols}}
+        grouped = tmp.groupby("DATE").agg(aggregation).sort_index()
+        grouped["y_pred_mean"] = grouped[pred_cols].mean(axis=1)
+        grouped["y_pred_std"] = grouped[pred_cols].std(axis=1)
+    else:
+        # Compatibilidade com artefatos antigos sem as colunas por semente.
+        tmp["var_pred"] = (tmp["y_pred_std"] ** 2).fillna(0.0)
+        grouped = tmp.groupby("DATE").agg({
+            "y_true": "sum",
+            "y_pred_mean": "sum",
+            "var_pred": "sum",
+        }).sort_index()
+        grouped["y_pred_std"] = np.sqrt(grouped.pop("var_pred"))
 
     # resample opcional (ex.: semanal)
     if resample_rule:
-        grouped = grouped.resample(resample_rule).agg({
-            "y_true": "sum",
-            "y_pred_mean": "sum",
-            "y_pred_std": lambda x: np.sqrt((x ** 2).sum())
-        }).dropna(how="all")
+        if pred_cols:
+            aggregation = {"y_true": "sum", **{col: "sum" for col in pred_cols}}
+            grouped = grouped.resample(resample_rule).agg(aggregation).dropna(how="all")
+            grouped["y_pred_mean"] = grouped[pred_cols].mean(axis=1)
+            grouped["y_pred_std"] = grouped[pred_cols].std(axis=1)
+        else:
+            grouped = grouped.resample(resample_rule).agg({
+                "y_true": "sum",
+                "y_pred_mean": "sum",
+                "y_pred_std": lambda x: np.sqrt((x ** 2).sum())
+            }).dropna(how="all")
 
     grouped = grouped.reset_index()  # DATE vira coluna
 
@@ -668,6 +677,10 @@ if __name__ == "__main__":
     MODELS_DIR = "models"
     DATASETS_ROOT = "data/datasets"
 
+    totals_out = os.path.join(MODELS_DIR, "total_cases_summary.csv")
+    if os.path.exists(totals_out):
+        os.remove(totals_out)
+
     # Seus 8 datasets principais
     DATASETS = [
         "RJ_DAILY_FULL",
@@ -728,7 +741,6 @@ if __name__ == "__main__":
                 print(summary)
 
                 # salvar CSV acumulando resultados
-                totals_out = os.path.join(MODELS_DIR, "total_cases_summary.csv")
                 df_out = pd.DataFrame([summary])
 
                 if not os.path.exists(totals_out):

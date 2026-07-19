@@ -6,7 +6,14 @@ import pandas as pd
 import numpy as np
 
 
-def create_new_features(df: pd.DataFrame, subset: str, config, output_path):
+def create_new_features(
+    df: pd.DataFrame,
+    subset: str,
+    config,
+    output_path,
+    target_start=None,
+    target_end=None,
+):
     """
     Gera features, constrói janelas deslizantes e prepara:
       - X: matriz de preditores
@@ -17,6 +24,9 @@ def create_new_features(df: pd.DataFrame, subset: str, config, output_path):
         * Y_TRUE: valor real do alvo (TARGET)
     """
     df = df.copy()
+    # Mantém toda transformação temporal dentro da série de cada unidade.
+    group_cols = ["ID_UNIDADE"] if "ID_UNIDADE" in df.columns else []
+    df = df.sort_values(group_cols + ["DT_NOTIFIC"], kind="stable").reset_index(drop=True)
     enabled = config.features["enable"]
     windows = config.features.get("windows", [7, 14, 21, 28])
     lags = config.features.get("lags", 6)
@@ -28,20 +38,32 @@ def create_new_features(df: pd.DataFrame, subset: str, config, output_path):
     def is_available(colname: str) -> bool:
         return colname in df.columns
 
+    def rolling_feature(colname: str, window: int, operation: str) -> pd.Series:
+        if group_cols:
+            rolling = df.groupby(group_cols, sort=False)[colname].rolling(window=window)
+            values = getattr(rolling, operation)().reset_index(level=group_cols, drop=True)
+            return values.reindex(df.index)
+        return getattr(df[colname].rolling(window=window), operation)()
+
+    def lag_feature(colname: str, lag: int) -> pd.Series:
+        if group_cols:
+            return df.groupby(group_cols, sort=False)[colname].shift(lag)
+        return df[colname].shift(lag)
+
     # -------------------------------------------------------------------------
     # 1) FEATURES DE CASOS (baseadas em CASES_t)
     # -------------------------------------------------------------------------
     if enabled.get("cases_windows", False) and is_available("CASES"):
         for window in windows:
-            df[f"CASES_MM_{window}"] = df["CASES"].rolling(window=window).mean()
+            df[f"CASES_MM_{window}"] = rolling_feature("CASES", window, "mean")
 
     if enabled.get("cases_accumulators", False) and is_available("CASES"):
         for window in windows:
-            df[f"CASES_ACC_{window}"] = df["CASES"].rolling(window=window).sum()
+            df[f"CASES_ACC_{window}"] = rolling_feature("CASES", window, "sum")
 
     if enabled.get("cases_lags", False) and is_available("CASES"):
         for lag in range(1, lags + 1):
-            df[f"CASES_LAG_{lag}"] = df["CASES"].shift(lag)
+            df[f"CASES_LAG_{lag}"] = lag_feature("CASES", lag)
 
     # -------------------------------------------------------------------------
     # 2) FEATURES METEOROLÓGICAS SIMPLES
@@ -75,14 +97,14 @@ def create_new_features(df: pd.DataFrame, subset: str, config, output_path):
     if enabled.get("windows", False):
         for window in windows:
             if is_available("TEM_AVG"):
-                df[f"TEM_AVG_MM_{window}"] = df["TEM_AVG"].rolling(window=window).mean()
+                df[f"TEM_AVG_MM_{window}"] = rolling_feature("TEM_AVG", window, "mean")
             if is_available("RAIN"):
-                df[f"RAIN_ACC_{window}"] = df["RAIN"].rolling(window=window).sum()
-                df[f"RAIN_MM_{window}"] = df["RAIN"].rolling(window=window).mean()
+                df[f"RAIN_ACC_{window}"] = rolling_feature("RAIN", window, "sum")
+                df[f"RAIN_MM_{window}"] = rolling_feature("RAIN", window, "mean")
             if is_available("RH_AVG"):
-                df[f"RH_MM_{window}"] = df["RH_AVG"].rolling(window=window).mean()
+                df[f"RH_MM_{window}"] = rolling_feature("RH_AVG", window, "mean")
             if is_available("TEMP_RANGE"):
-                df[f"TEMP_RANGE_MM_{window}"] = df["TEMP_RANGE"].rolling(window=window).mean()
+                df[f"TEMP_RANGE_MM_{window}"] = rolling_feature("TEMP_RANGE", window, "mean")
 
     # -------------------------------------------------------------------------
     # 4) CORTE TEMPORAL
@@ -120,10 +142,19 @@ def create_new_features(df: pd.DataFrame, subset: str, config, output_path):
     cols_to_exclude = set(["CASES", "TARGET", "LAT", "LNG", "DT_NOTIFIC"] + sidecar_cols)
     feat_cols = [c for c in df.columns if c not in cols_to_exclude]
 
+    # A partição é definida pela data do alvo. Assim, validação e teste podem
+    # utilizar contexto estritamente anterior ao corte sem incorporar futuro.
+    target_dates = pd.to_datetime(df["TARGET_DATE"])
+    target_period_mask = pd.Series(True, index=df.index)
+    if target_start is not None:
+        target_period_mask &= target_dates >= pd.Timestamp(target_start)
+    if target_end is not None:
+        target_period_mask &= target_dates < pd.Timestamp(target_end)
+
     # -------------------------------------------------------------------------
-    # 8) MÁSCARA DE LINHAS VÁLIDAS (sem NaN em TARGET nem em features)
+    # 8) MÁSCARA DE LINHAS VÁLIDAS (período do alvo e ausência de NaN)
     # -------------------------------------------------------------------------
-    valid_mask = df[["TARGET"] + feat_cols].notna().all(axis=1)
+    valid_mask = target_period_mask & df[["TARGET"] + feat_cols].notna().all(axis=1)
     df_valid = df.loc[valid_mask].copy()
 
     # -------------------------------------------------------------------------

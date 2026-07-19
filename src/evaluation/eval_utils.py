@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, spearmanr
 import pandas as pd
 import math
 import re
@@ -54,11 +54,13 @@ def get_training_metrics(y_true, y_pred):
 
     smape_val = smape(y_true, y_pred_rounded)
 
-    # Pearson precisa de valores contínuos
-    try:
+    # Correlações não são definidas quando uma das séries é constante.
+    if np.unique(y_true).size > 1 and np.unique(y_pred_rounded).size > 1:
         pearson_corr = pearsonr(y_true, y_pred_rounded)[0]
-    except:
+        spearman_corr = spearmanr(y_true, y_pred_rounded).statistic
+    else:
         pearson_corr = None
+        spearman_corr = None
 
     # Poisson Deviance usa valores contínuos e positivos
     try:
@@ -78,7 +80,44 @@ def get_training_metrics(y_true, y_pred):
         "MAPE (ign. zeros)": safe(mape),
         "SMAPE": safe(smape_val),
         "Poisson_Deviance": safe(poisson_dev),
-        "Pearson": safe(pearson_corr)
+        "Pearson": safe(pearson_corr),
+        "Spearman": safe(spearman_corr)
+    }
+
+
+def get_optimization_metrics(y_true, y_pred):
+    """Métricas na ordem do estudo Optuna, todas orientadas à minimização."""
+    y_true = np.asarray(y_true).astype(int)
+    y_pred_continuous = np.maximum(np.asarray(y_pred, dtype=float), 0.0)
+    y_pred_rounded = np.round(y_pred_continuous).astype(int)
+
+    mse = mean_squared_error(y_true, y_pred_rounded)
+    rmse = np.sqrt(mse)
+    mae = mean_absolute_error(y_true, y_pred_rounded)
+    r2 = r2_score(y_true, y_pred_rounded)
+    non_zero_mask = y_true != 0
+    mape = (
+        np.mean(np.abs((y_true[non_zero_mask] - y_pred_rounded[non_zero_mask]) / y_true[non_zero_mask])) * 100
+        if np.any(non_zero_mask) else 0.0
+    )
+    smape_value = smape(y_true, y_pred_rounded)
+    if np.unique(y_true).size > 1 and np.unique(y_pred_rounded).size > 1:
+        rho = spearmanr(y_true, y_pred_rounded).statistic
+    else:
+        rho = 0.0
+    poisson_deviance = mean_poisson_deviance(
+        y_true, np.maximum(y_pred_continuous, 1e-10)
+    )
+
+    return {
+        "MSE": float(mse),
+        "RMSE": float(rmse),
+        "MAE": float(mae),
+        "Negative_R2": float(-r2),
+        "MAPE_ignoring_zeros": float(mape),
+        "SMAPE": float(smape_value),
+        "Negative_Spearman": float(-rho),
+        "Poisson_Deviance": float(poisson_deviance),
     }
     
 def save_all_metrics(metrics_dict, outdir):

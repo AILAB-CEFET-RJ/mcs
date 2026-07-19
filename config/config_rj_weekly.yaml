@@ -9,7 +9,7 @@ paths:
   unidade: FULL
 
 preproc:
-  SLIDING_WINDOW_SIZE: 7
+  SLIDING_WINDOW_SIZE: 4
   MIN_DATE: 2014-01-01
   MAX_DATE: 2023-12-31
   TRAIN_SPLIT: 2018-01-01
@@ -38,7 +38,7 @@ features:
       rh_min: true
       rh_max: true
 
-  windows: [7, 14, 21, 28]
+  windows: [1, 2, 3, 4]
   lags: 6
 
   temp:

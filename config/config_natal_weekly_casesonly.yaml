@@ -6,10 +6,11 @@ paths:
   cnes: data/processed/cnes/STRN2412.parquet
   era5: data/raw/era5/NATAL_2014_2019.nc
   output: data/datasets/RN_WEEKLY_CASESONLY
+  support_dataset: data/datasets/RN_WEEKLY
   unidade: FULL
 
 preproc:
-  SLIDING_WINDOW_SIZE: 7
+  SLIDING_WINDOW_SIZE: 4
   MIN_DATE: 2015-01-01
   MAX_DATE: 2019-12-31
   TRAIN_SPLIT: 2018-01-01
@@ -38,7 +39,7 @@ features:
       rh_min: false
       rh_max: false
 
-  windows: [7, 14, 21, 28]
+  windows: [1, 2, 3, 4]
   lags: 6
 
   temp:

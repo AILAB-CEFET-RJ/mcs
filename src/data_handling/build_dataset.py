@@ -22,8 +22,8 @@ from sklearn.preprocessing import StandardScaler
 from scipy.spatial import cKDTree
 import xarray as xr
 import yaml
-from tqdm import tqdm
 import json
+from pathlib import Path
 
 from features.feature_config_parser import FeatureConfig
 from features.feature_engineering import create_new_features
@@ -37,12 +37,6 @@ except Exception:
     ClusterRecipe = None
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-
-
-# Função auxiliar de matching espacial
-def find_nearest(lat, lon, tree, coords):
-    dist, idx = tree.query([[lat, lon]], k=1)
-    return coords[idx[0]]
 
 
 # Leitura ERA5
@@ -93,10 +87,140 @@ def extract_era5_data(ds, lat, lon, date, config):
 
     return result
 
+
+def _resample_era5_variable(data, rule, operation, weekly):
+    kwargs = {"closed": "left", "label": "left"} if weekly else {}
+    resampled = data.resample(time=rule, **kwargs)
+    reduce_dims = [dim for dim in ("time", "expver") if dim in data.dims]
+    return getattr(resampled, operation)(dim=reduce_dims, skipna=True)
+
+
+def aggregate_era5_grid(ds, start_date, end_date, weekly=False):
+    """Agrega toda a grade necessária de uma vez, sem alterar as estatísticas.
+
+    A implementação anterior selecionava a mesma célula do NetCDF novamente
+    para cada data e unidade. Aqui cada variável é agregada vetorialmente pelo
+    xarray e depois convertida em uma tabela usada pelo merge.
+    """
+    if "time" not in ds.coords and "valid_time" in ds.coords:
+        ds = ds.rename({"valid_time": "time"})
+
+    start_date = pd.Timestamp(start_date).normalize()
+    end_date = pd.Timestamp(end_date).normalize()
+    slice_end = end_date + pd.Timedelta(days=6 if weekly else 0, hours=23)
+    selected = ds.sel(time=slice(start_date, slice_end))
+    rule = "W-MON" if weekly else "1D"
+
+    t2m = selected["t2m"]
+    d2m = selected["d2m"]
+    tp = selected["tp"]
+
+    def sat_vapor_pressure(temp):
+        return 6.112 * np.exp((17.67 * (temp - 273.15)) / (temp - 29.65))
+
+    rh = 100 * (sat_vapor_pressure(d2m) / sat_vapor_pressure(t2m))
+    aggregated = xr.Dataset({
+        "TEM_AVG": _resample_era5_variable(t2m, rule, "mean", weekly) - 273.15,
+        "TEM_MIN": _resample_era5_variable(t2m, rule, "min", weekly) - 273.15,
+        "TEM_MAX": _resample_era5_variable(t2m, rule, "max", weekly) - 273.15,
+        "RAIN": _resample_era5_variable(tp, rule, "sum", weekly),
+        "RH_AVG": _resample_era5_variable(rh, rule, "mean", weekly),
+        "RH_MIN": _resample_era5_variable(rh, rule, "min", weekly),
+        "RH_MAX": _resample_era5_variable(rh, rule, "max", weekly),
+    })
+    result = aggregated.to_dataframe().reset_index()
+    result = result.rename(columns={"time": "DT_NOTIFIC", "latitude": "LAT_ERA5", "longitude": "LNG_ERA5"})
+    result["DT_NOTIFIC"] = pd.to_datetime(result["DT_NOTIFIC"])
+    return result[
+        ["DT_NOTIFIC", "LAT_ERA5", "LNG_ERA5", "TEM_AVG", "TEM_MIN", "TEM_MAX", "RAIN", "RH_AVG", "RH_MIN", "RH_MAX"]
+    ]
+
+
+def load_or_build_era5_grid(era5_path, ds, start_date, end_date, weekly=False):
+    """Reutiliza a agregação se o NetCDF e o intervalo não mudaram."""
+    source = Path(era5_path)
+    frequency = "weekly" if weekly else "daily"
+    start_key = pd.Timestamp(start_date).strftime("%Y%m%d")
+    end_key = pd.Timestamp(end_date).strftime("%Y%m%d")
+    cache_path = source.with_name(f"{source.stem}.arboseer_{frequency}_{start_key}_{end_key}.parquet")
+
+    if cache_path.exists() and cache_path.stat().st_mtime_ns >= source.stat().st_mtime_ns:
+        logging.info("⚡ Reutilizando cache ERA5: %s", cache_path)
+        return pd.read_parquet(cache_path)
+
+    logging.info("⚡ Agregando grade ERA5 de forma vetorizada...")
+    result = aggregate_era5_grid(ds, start_date, end_date, weekly=weekly)
+    result.to_parquet(cache_path, index=False)
+    logging.info("💾 Cache ERA5 salvo em: %s", cache_path)
+    return result
+
+
+def build_partition_with_history(df, target_start, target_end, context_rows):
+    """Mantém o período do alvo e acrescenta apenas contexto anterior ao corte."""
+    dates = pd.to_datetime(df["DT_NOTIFIC"])
+    current = df[dates >= pd.Timestamp(target_start)].copy()
+    if target_end is not None:
+        current = current[pd.to_datetime(current["DT_NOTIFIC"]) < pd.Timestamp(target_end)]
+
+    history = df[dates < pd.Timestamp(target_start)].copy()
+    if "ID_UNIDADE" in history.columns:
+        history = (
+            history.sort_values(["ID_UNIDADE", "DT_NOTIFIC"], kind="stable")
+            .groupby("ID_UNIDADE", sort=False, group_keys=False)
+            .tail(context_rows)
+        )
+    else:
+        history = history.sort_values("DT_NOTIFIC", kind="stable").tail(context_rows)
+
+    return pd.concat([history, current], ignore_index=True)
+
+
+def filter_to_reference_support(X, y, sidecar, reference_dir, split):
+    """Restringe uma partição às mesmas datas/unidades do dataset FULL."""
+    reference_path = Path(reference_dir) / "dataset_ids.pickle"
+    if not reference_path.is_file():
+        raise FileNotFoundError(
+            f"Dataset de suporte não encontrado: {reference_path}. "
+            "Construa o dataset FULL antes do CASEONLY."
+        )
+
+    with reference_path.open("rb") as file:
+        reference = pickle.load(file)[split]
+
+    current_keys = pd.MultiIndex.from_arrays([
+        pd.to_datetime(sidecar["DATE"]),
+        np.asarray(sidecar["ID_UNIDADE"]).astype(str),
+    ])
+    reference_keys = pd.MultiIndex.from_arrays([
+        pd.to_datetime(reference["DATE"]),
+        np.asarray(reference["ID_UNIDADE"]).astype(str),
+    ])
+    keep = current_keys.isin(reference_keys)
+
+    filtered_sidecar = {
+        key: np.asarray(values)[keep]
+        for key, values in sidecar.items()
+    }
+    X_filtered = X[keep]
+    y_filtered = y[keep]
+
+    if len(y_filtered) != len(reference_keys):
+        raise RuntimeError(
+            f"Suporte incompatível em {split}: CASEONLY={len(y_filtered)} "
+            f"e FULL={len(reference_keys)}."
+        )
+    if not np.array_equal(y_filtered, np.asarray(reference["Y_TRUE"])):
+        raise RuntimeError(f"Alvos divergentes entre CASEONLY e FULL em {split}.")
+
+    return X_filtered, y_filtered, filtered_sidecar
+
 # Processamento total
 def build_dataset_era5(config_path, sinan_path, cnes_path, era5_path, output_path, id_unidade):
     """Modo antigo: por unidade + ERA5."""
     config = FeatureConfig(config_path)
+    with open(config_path, "r", encoding="utf-8") as file:
+        raw_config = yaml.safe_load(file)
+    reference_support = raw_config.get("paths", {}).get("support_dataset")
 
     logging.info("🔧 Lendo dados...")
     sinan_df = pd.read_parquet(sinan_path)
@@ -116,54 +240,97 @@ def build_dataset_era5(config_path, sinan_path, cnes_path, era5_path, output_pat
         sinan_df['DT_SEMANA'] = sinan_df['DT_NOTIFIC'].dt.to_period('W').apply(lambda r: r.start_time)
         sinan_df = sinan_df.groupby(['ID_UNIDADE', 'DT_SEMANA']).agg({'CASES': 'sum', 'LAT': 'first', 'LNG': 'first'}).reset_index()
 
-    era5_ds = xr.open_dataset(era5_path)
-    era5_lat = era5_ds.latitude.values
-    era5_lon = era5_ds.longitude.values
-    grid_coords = np.array([(lat, lon) for lat in era5_lat for lon in era5_lon])
-    era5_tree = cKDTree(grid_coords)
-
-    sinan_coords = sinan_df[['LAT', 'LNG']].values
-    nearest_era5_coords = np.apply_along_axis(lambda x: find_nearest(x[0], x[1], era5_tree, pd.DataFrame(grid_coords, columns=['LAT', 'LNG']).values), 1, sinan_coords)
-    sinan_df['LAT_ERA5'], sinan_df['LNG_ERA5'] = nearest_era5_coords[:, 0], nearest_era5_coords[:, 1]
-
-    era5_records = []
     dt_col = 'DT_SEMANA' if config.weekly else 'DT_NOTIFIC'
-    unique_dates = sinan_df[[dt_col, 'LAT_ERA5', 'LNG_ERA5']].drop_duplicates()
+    raw_flags = config.features["enable"].get("raw_features", {})
+    raw_columns = {
+        "tem_avg": "TEM_AVG", "tem_min": "TEM_MIN", "tem_max": "TEM_MAX",
+        "rain": "RAIN", "rh_avg": "RH_AVG", "rh_min": "RH_MIN", "rh_max": "RH_MAX",
+    }
+    requested_columns = [column for flag, column in raw_columns.items() if raw_flags.get(flag, False)]
 
-    for _, row in tqdm(unique_dates.iterrows(), total=len(unique_dates), desc="ERA5 extraction"):
-        date = row[dt_col]
-        lat, lon = row['LAT_ERA5'], row['LNG_ERA5']
-        try:
-            vals = extract_era5_data(era5_ds, lat, lon, date, config)
-            era5_records.append([date, lat, lon, *vals.values()])
-        except ValueError:
-            continue
+    if requested_columns:
+        era5_ds = xr.open_dataset(era5_path)
+        grid_coords = np.array([
+            (lat, lon) for lat in era5_ds.latitude.values for lon in era5_ds.longitude.values
+        ])
+        era5_tree = cKDTree(grid_coords)
 
-    era5_df = pd.DataFrame(era5_records, columns=[dt_col, 'LAT', 'LNG'] + list(vals.keys()))    
-    era5_df[dt_col] = pd.to_datetime(era5_df[dt_col])
-    sinan_df = sinan_df.merge(
-        era5_df.rename(columns={'LAT': 'LAT_ERA5', 'LNG': 'LNG_ERA5'}),
-        on=[dt_col, 'LAT_ERA5', 'LNG_ERA5'],
-        how='left'
-    )
-    sinan_df.drop(columns=['LAT_ERA5', 'LNG_ERA5', 'LAT', 'LNG'], inplace=True)
+        # O pareamento espacial depende apenas da unidade, não de cada registro.
+        unit_coords = sinan_df[["ID_UNIDADE", "LAT", "LNG"]].drop_duplicates("ID_UNIDADE").copy()
+        _, nearest_indices = era5_tree.query(unit_coords[["LAT", "LNG"]].to_numpy(), k=1)
+        nearest_coords = grid_coords[nearest_indices]
+        unit_coords["LAT_ERA5"] = nearest_coords[:, 0]
+        unit_coords["LNG_ERA5"] = nearest_coords[:, 1]
+        sinan_df = sinan_df.merge(
+            unit_coords[["ID_UNIDADE", "LAT_ERA5", "LNG_ERA5"]],
+            on="ID_UNIDADE",
+            how="left",
+        )
+
+        era5_df = load_or_build_era5_grid(
+            era5_path,
+            era5_ds,
+            sinan_df[dt_col].min(),
+            sinan_df[dt_col].max(),
+            weekly=config.weekly,
+        ).rename(columns={"DT_NOTIFIC": dt_col})
+        era5_df = era5_df[[dt_col, "LAT_ERA5", "LNG_ERA5"] + requested_columns]
+        sinan_df = sinan_df.merge(
+            era5_df,
+            on=[dt_col, "LAT_ERA5", "LNG_ERA5"],
+            how="left",
+        )
+        sinan_df.drop(columns=["LAT_ERA5", "LNG_ERA5"], inplace=True)
+        era5_ds.close()
+    else:
+        logging.info("⚡ Dataset sem clima: leitura e processamento do ERA5 ignorados.")
+
+    sinan_df.drop(columns=['LAT', 'LNG'], inplace=True)
 
     if config.weekly:
         sinan_df.rename(columns={'DT_SEMANA': 'DT_NOTIFIC'}, inplace=True)
         
-    sinan_df.to_csv('teste.csv')
-
     train_date = pd.to_datetime(config.train_split)
     val_date = pd.to_datetime(config.val_split)
 
-    train = sinan_df[sinan_df['DT_NOTIFIC'] < train_date]
-    val = sinan_df[(sinan_df['DT_NOTIFIC'] >= train_date) & (sinan_df['DT_NOTIFIC'] < val_date)]
-    test = sinan_df[sinan_df['DT_NOTIFIC'] >= val_date]
+    context_rows = max(
+        max(config.features.get("windows", [1])),
+        int(config.features.get("lags", 0)),
+    )
+    train = build_partition_with_history(
+        sinan_df, config.min_date, train_date, context_rows
+    )
+    val = build_partition_with_history(
+        sinan_df, train_date, val_date, context_rows
+    )
+    test = build_partition_with_history(
+        sinan_df, val_date, None, context_rows
+    )
 
     logging.info("🧪 Feature engineering...")
-    X_train, y_train, ids_train = create_new_features(train, "train", config, output_path)
-    X_val,   y_val,   ids_val   = create_new_features(val,   "val",   config, output_path)
-    X_test,  y_test,  ids_test  = create_new_features(test,  "test",  config, output_path)
+    X_train, y_train, ids_train = create_new_features(
+        train, "train", config, output_path,
+        target_start=config.min_date, target_end=train_date,
+    )
+    X_val, y_val, ids_val = create_new_features(
+        val, "val", config, output_path,
+        target_start=train_date, target_end=val_date,
+    )
+    X_test, y_test, ids_test = create_new_features(
+        test, "test", config, output_path,
+        target_start=val_date,
+    )
+
+    if reference_support:
+        X_train, y_train, ids_train = filter_to_reference_support(
+            X_train, y_train, ids_train, reference_support, "train"
+        )
+        X_val, y_val, ids_val = filter_to_reference_support(
+            X_val, y_val, ids_val, reference_support, "val"
+        )
+        X_test, y_test, ids_test = filter_to_reference_support(
+            X_test, y_test, ids_test, reference_support, "test"
+        )
 
     logging.info("⚖️ Normalizando...")
     scaler = StandardScaler()

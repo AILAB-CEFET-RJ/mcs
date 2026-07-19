@@ -97,3 +97,5 @@ legacy/atmoseer/spatiotemporal_builder/alertario_keys
 legacy/atmoseer/spatiotemporal_builder/features
 __pycache__
 models/_smoke_stconv_s2s_e1/config.json
+models/*
+
