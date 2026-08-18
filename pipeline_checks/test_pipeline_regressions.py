@@ -17,6 +17,7 @@ from aggregate import aggregate_by_date
 from data_handling.build_dataset import (
     aggregate_era5_grid,
     build_partition_with_history,
+    complete_era5_grid_coordinates,
     extract_era5_data,
     filter_to_reference_support,
 )
@@ -25,6 +26,20 @@ from evaluation.eval_utils import get_optimization_metrics
 
 
 class PipelineRegressionTests(unittest.TestCase):
+    def test_era5_spatial_support_excludes_incomplete_ocean_cells(self):
+        dates = pd.date_range("2020-01-01", periods=2, freq="D")
+        era5 = pd.DataFrame({
+            "DT_NOTIFIC": list(dates) * 2,
+            "LAT_ERA5": [-5.8, -5.8, -5.7, -5.7],
+            "LNG_ERA5": [-35.2, -35.2, -35.3, -35.3],
+            "TEM_AVG": [np.nan, np.nan, 27.0, 28.0],
+            "RAIN": [0.0, 1.0, 0.0, 1.0],
+        })
+        coordinates = complete_era5_grid_coordinates(
+            era5, ["TEM_AVG", "RAIN"]
+        )
+        np.testing.assert_array_equal(coordinates, [[-5.7, -35.3]])
+
     def test_vectorized_era5_matches_legacy_extraction(self):
         times = pd.date_range("2020-01-06", periods=24 * 7, freq="h")
         shape = (len(times), 1, 1)
@@ -81,8 +96,10 @@ class PipelineRegressionTests(unittest.TestCase):
             unit: (X[index, mm_idx], X[index, lag_idx], y[index])
             for index, unit in enumerate(sidecar["ID_UNIDADE"])
         }
-        self.assertEqual(rows["A"], (1.5, 1.0, 3.0))
-        self.assertEqual(rows["B"], (150.0, 100.0, 300.0))
+        # LAG_1 is target-relative: for target t+1 it contains the anchor t.
+        # The distinct magnitudes also prove that no value crosses units.
+        self.assertEqual(rows["A"], (1.5, 2.0, 3.0))
+        self.assertEqual(rows["B"], (150.0, 200.0, 300.0))
 
     def test_optimization_metrics_have_minimization_direction(self):
         metrics = get_optimization_metrics(
@@ -132,7 +149,9 @@ class PipelineRegressionTests(unittest.TestCase):
         self.assertEqual(pd.Timestamp(sidecar["DATE"][0]), split)
         self.assertEqual(y[0], 5.0)
         self.assertEqual(X[0, names.index("CASES_MM_4")], 2.5)
-        self.assertEqual(X[0, names.index("CASES_LAG_1")], 3.0)
+        # The first validation target is 5 at the split; its strictly-past
+        # anchor is 4. No value at or after the target is read.
+        self.assertEqual(X[0, names.index("CASES_LAG_1")], 4.0)
 
     def test_caseonly_is_filtered_to_full_support(self):
         dates = pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-02"])

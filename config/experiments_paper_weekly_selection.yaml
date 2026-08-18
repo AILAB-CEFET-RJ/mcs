@@ -1,0 +1,30 @@
+global:
+  seed: 987
+  use_fixed_seed: true
+  n_jobs_xgb: 8
+  early_stopping_rounds: 20
+  runs_dir: "arboseer/models/cap4_experiment_v2/tabular_selection"
+  run_label: "weekly_h01"
+  output_tag: "PAPER_SELECTION_2021"
+  final_seeds: [109, 220, 222, 241, 149, 107, 75, 248, 254, 140]
+  trials_per_round: [10, 10, 10]
+  directions:
+    - minimize  # MSE
+    - minimize  # RMSE
+    - minimize  # MAE
+    - minimize  # negative R2
+    - minimize  # MAPE ignoring zeros
+    - minimize  # SMAPE
+    - minimize  # negative Spearman
+    - minimize  # Poisson deviance
+
+experiments:
+  - dataset: "arboseer/data/datasets/RJ_WEEKLY_MULTI_HORIZON_V2_DEVELOPMENT/FULL_FUSED/h01"
+    models: [poisson, zip, rf]
+    name: "FULL_FUSED_h01"
+    train_config: "arboseer/config/train_paper_weekly_full_fused_h01.yaml"
+
+  - dataset: "arboseer/data/datasets/RJ_WEEKLY_MULTI_HORIZON_V2_DEVELOPMENT/CASEONLY/h01"
+    models: [poisson, zip, rf]
+    name: "CASEONLY_h01"
+    train_config: "arboseer/config/train_paper_weekly_caseonly_h01.yaml"

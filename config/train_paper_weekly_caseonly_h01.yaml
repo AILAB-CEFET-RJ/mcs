@@ -1,0 +1,9 @@
+dataset: "arboseer/data/datasets/RJ_WEEKLY_MULTI_HORIZON_V2_DEVELOPMENT/CASEONLY/h01"
+feature_dict: "arboseer/data/datasets/RJ_FUSED_CALIBRATION_V2/WEEKLY/RJ_WEEKLY_CASEONLY/feature_dictionary.csv"
+output_dir: "arboseer/models/cap4_experiment_v2/tabular_selected_models/CASEONLY_h01"
+seed: 987
+generate_rf_learning_curve: false
+models:
+  random_forest: true
+  xgb_poisson: true
+  xgb_zip: true

@@ -10,7 +10,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = PROJECT_ROOT / "config" / "experiments.yaml"
-LOG_DIRECTORY = PROJECT_ROOT / "runs" / "stage3_method_corrected_v2"
+LOG_DIRECTORY = PROJECT_ROOT / "runs" / "stage3_land_cells_corrected_v3"
 LOG_PATH = LOG_DIRECTORY / "optimization_pipeline.log"
 
 

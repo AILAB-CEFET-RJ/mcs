@@ -6,6 +6,7 @@ import optuna
 import numpy as np
 import logging
 import json
+from data_handling.utils.data_utils import load_selection_data
 
 from optimization.experiment_config_parser import ExperimentConfig
 from optimization import adaptive_spaces, objective_functions, space_refiner
@@ -18,13 +19,7 @@ class ExperimentController:
         self.config = ExperimentConfig(config_path)
 
     def load_data(self, dataset_path):
-        with open(dataset_path, "rb") as f:
-            X_train, y_train, X_val, y_val, X_test, y_test = pickle.load(f)
-
-        X_train = X_train.reshape(X_train.shape[0], -1)
-        X_val   = X_val.reshape(X_val.shape[0], -1)
-        X_test  = X_test.reshape(X_test.shape[0], -1)
-        return X_train, y_train, X_val, y_val, X_test, y_test
+        return load_selection_data(dataset_path)
 
     def _setup_logger(self, study_dir):
         logger = logging.getLogger(study_dir)
@@ -94,7 +89,7 @@ class ExperimentController:
             self.run_single_experiment(dataset_path, model_type, name, train_config)
 
     def run_single_experiment(self, dataset_path, model_type, name, train_config):
-        X_train, y_train, X_val, y_val, X_test, y_test = self.load_data(dataset_path)
+        X_train, y_train, X_val, y_val = self.load_data(dataset_path)
         # MSE   RMSE  MAE   -R²   MAPE  SMAPE  -Spearman rho  PoisDev
         weights = np.array([0.75, 0.75, 1.5, 1.25, 0.25, 1.0, 1.25, 2.25], dtype=float)
         weights = weights / weights.sum()
@@ -211,6 +206,7 @@ class ExperimentController:
             output_tag=self.config.output_tag,
             selected_models=selected_models,
             skip_completed=True,
+            evaluation_policy="selection",
         )
 
         logger.info("Final robust training completed.")

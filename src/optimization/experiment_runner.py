@@ -7,12 +7,11 @@ import os
 import numpy as np
 
 from optimization import adaptive_spaces, objective_functions
-from evaluation.eval_utils import get_training_metrics
-from data_handling.utils.data_utils import load_data
+from data_handling.utils.data_utils import load_selection_data
 
 def run_single(dataset_path, model_type, trials, directions):
 
-    X_train, y_train, X_val, y_val, X_test, y_test = load_data(dataset_path)
+    X_train, y_train, X_val, y_val = load_selection_data(dataset_path)
 
     space = getattr(adaptive_spaces, f"initial_{model_type}_space")
     suggest_fn = getattr(adaptive_spaces, f"suggest_{model_type}")
@@ -30,18 +29,8 @@ def run_single(dataset_path, model_type, trials, directions):
 
     study.optimize(optuna_objective, n_trials=trials)
 
-    # Avalia no teste
     best_trial = study.best_trials[0]
-    best_params = suggest_fn(best_trial, space)
-    model_final = objective_fn(None, X_train, y_train, X_test, y_test, best_params, return_model=True)
-
-    y_pred = model_final.predict(X_test)
-    y_pred = np.round(np.maximum(y_pred, 0)).astype(int)
-    test_metrics = get_training_metrics(y_test, y_pred)
-
-    print("\n📊 Test Metrics:")
-    for k, v in test_metrics.items():
-        print(f"  {k}: {v}")
+    print(f"\nSeleção concluída sem abrir o artefato de confirmação; trial={best_trial.number}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

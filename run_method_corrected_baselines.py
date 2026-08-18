@@ -9,8 +9,8 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-LOG_DIRECTORY = PROJECT_ROOT / "runs" / "stage1_baseline_method_corrected_v2"
-OUTPUT_TAG = "BASELINE_METHOD_CORRECTED_V2"
+LOG_DIRECTORY = PROJECT_ROOT / "runs" / "stage1_baseline_land_cells_corrected_v3"
+OUTPUT_TAG = "BASELINE_LAND_CELLS_CORRECTED_V3"
 
 CONFIGS = [
     "config/train_rj_daily.yaml",

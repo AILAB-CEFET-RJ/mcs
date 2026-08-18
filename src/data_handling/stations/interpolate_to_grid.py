@@ -60,12 +60,17 @@ def idw_weights(grid_lat, grid_lon, st_lats, st_lons, alpha=2.0, cutoff_km=150.0
     Compute IDW weight matrix W[h,w,s] for each grid cell and station.
     Stations beyond cutoff_km get zero weight.
     """
-    H, W = len(grid_lat), len(grid_lon)
+    if np.ndim(grid_lat) == 1 and np.ndim(grid_lon) == 1:
+        lat_grid, lon_grid = np.meshgrid(grid_lat, grid_lon, indexing="ij")
+    elif np.shape(grid_lat) == np.shape(grid_lon) and np.ndim(grid_lat) == 2:
+        lat_grid, lon_grid = np.asarray(grid_lat), np.asarray(grid_lon)
+    else:
+        raise ValueError("Grid coordinates must be matching 2-D arrays or two 1-D axes")
+    H, W = lat_grid.shape
     S = len(st_lats)
     weights = np.zeros((H, W, S), dtype=np.float32)
 
     for s, (slat, slon) in enumerate(zip(st_lats, st_lons)):
-        lat_grid, lon_grid = np.meshgrid(grid_lat, grid_lon, indexing="ij")
         dist = haversine_km(lat_grid, lon_grid, slat, slon)
         dist[dist < 0.1] = 0.1  # avoid division by zero
         w = 1.0 / dist ** alpha
@@ -75,7 +80,7 @@ def idw_weights(grid_lat, grid_lon, st_lats, st_lons, alpha=2.0, cutoff_km=150.0
     return weights
 
 
-def interpolate_channel(weeks, station_vals, weights):
+def interpolate_channel(weeks, station_vals, weights, *, method="idw", min_stations=1):
     """
     Interpolate one channel.
 
@@ -83,7 +88,9 @@ def interpolate_channel(weeks, station_vals, weights):
     ----------
     weeks        : (n_weeks,) array of week index
     station_vals : (n_weeks, S) array of station values (NaN where missing)
-    weights      : (H, W, S) IDW weights
+    weights      : (H, W, S) inverse-distance weights
+    method       : ``idw`` or ``nearest``
+    min_stations : minimum valid stations within the cutoff for each cell
 
     Returns
     -------
@@ -103,11 +110,19 @@ def interpolate_channel(weeks, station_vals, weights):
         used[wi] = True
         v = vals[valid]                 # (n_valid,)
         w = weights[:, :, valid]        # (H, W, n_valid)
-        w_sum = w.sum(axis=2)           # (H, W)
-        no_coverage = w_sum == 0
-        w_sum[no_coverage] = 1.0        # avoid /0; result stays NaN via numerator
-        numerator = (w * v[np.newaxis, np.newaxis, :]).sum(axis=2)
-        result = numerator / w_sum
+        station_count = (w > 0).sum(axis=2)
+        no_coverage = station_count < int(min_stations)
+        if method == "nearest":
+            # The largest inverse-distance weight is the nearest currently
+            # valid station. Cells failing the minimum are masked below.
+            result = v[np.argmax(w, axis=2)].astype(np.float32)
+        elif method == "idw":
+            w_sum = w.sum(axis=2)
+            safe_sum = np.where(w_sum > 0, w_sum, 1.0)
+            numerator = (w * v[np.newaxis, np.newaxis, :]).sum(axis=2)
+            result = numerator / safe_sum
+        else:
+            raise ValueError(f"Unknown interpolation method: {method}")
         result[no_coverage] = np.nan
         grid[wi] = result.astype(np.float32)
 
@@ -132,9 +147,12 @@ def main():
     era5_grid  = era5["era5_weekly"]         # (n_weeks, 6, H, W)
     era5_dates = era5["week_dates"]          # (n_weeks,) str YYYY-MM-DD
     era5_channels = list(era5["channels"])
-    lats = era5["lat"]
-    lons = era5["lon"]
-    H, W = len(lats), len(lons)
+    if "target_lat" in era5 and "target_lon" in era5:
+        lats, lons = era5["target_lat"], era5["target_lon"]
+        H, W = lats.shape
+    else:
+        lats, lons = era5["lat"], era5["lon"]
+        H, W = len(lats), len(lons)
     n_weeks = era5_grid.shape[0]
     log.info("ERA5: %d weeks, H=%d W=%d, channels=%s", n_weeks, H, W, era5_channels)
 
@@ -200,8 +218,7 @@ def main():
                 result_grid[wi, ch_idx] = cell
 
     log.info("Saving → %s  shape=%s", args.out, result_grid.shape)
-    np.savez_compressed(
-        args.out,
+    output = dict(
         era5_weekly=result_grid.astype(np.float32),
         channels=np.array(era5_channels),
         lat=lats,
@@ -209,6 +226,17 @@ def main():
         week_dates=era5_dates,
         fill_ratio=np.array(fill_ratios, dtype=np.float32),
     )
+    if np.ndim(lats) == 2:
+        output["target_lat"] = lats
+        output["target_lon"] = lons
+    for audit_key in (
+        "era5_source_pixel_ids",
+        "interpolation_method",
+        "resolution_warning",
+    ):
+        if audit_key in era5:
+            output[audit_key] = era5[audit_key]
+    np.savez_compressed(args.out, **output)
     log.info("Done.")
 
 

@@ -1,0 +1,36 @@
+dataset:
+  weekly: false
+preproc:
+  SLIDING_WINDOW_SIZE: 28
+  MIN_DATE: 2014-01-01
+  MAX_DATE: 2022-12-31
+  TRAIN_SPLIT: 2021-01-01
+  VAL_SPLIT: 2022-01-01
+features:
+  enable:
+    cases_windows: true
+    cases_accumulators: true
+    cases_lags: true
+    ideal_temp: false
+    extreme_temp: false
+    significant_rain: false
+    extreme_rain: false
+    temp_range: false
+    week_of_year: true
+    windows: false
+    raw_features:
+      tem_avg: false
+      tem_min: false
+      tem_max: false
+      rain: false
+      rh_avg: false
+      rh_min: false
+      rh_max: false
+  windows: [7, 14, 21, 28]
+  lags: 6
+  temp:
+    ideal_temp_range: [21, 27]
+    extreme_temp_range: [14, 38]
+  rain:
+    significant_range: [10, 150]
+    extreme_threshold: 150

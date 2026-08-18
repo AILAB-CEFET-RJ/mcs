@@ -123,7 +123,10 @@ def aggregate_era5_grid(ds, start_date, end_date, weekly=False):
         "TEM_AVG": _resample_era5_variable(t2m, rule, "mean", weekly) - 273.15,
         "TEM_MIN": _resample_era5_variable(t2m, rule, "min", weekly) - 273.15,
         "TEM_MAX": _resample_era5_variable(t2m, rule, "max", weekly) - 273.15,
-        "RAIN": _resample_era5_variable(tp, rule, "sum", weekly),
+        # ERA5 ``tp`` is expressed in metres of water equivalent.  Station
+        # networks used by the fused product report precipitation in mm, so
+        # convert before persisting/merging to prevent a 1000x unit mismatch.
+        "RAIN": _resample_era5_variable(tp, rule, "sum", weekly) * 1000.0,
         "RH_AVG": _resample_era5_variable(rh, rule, "mean", weekly),
         "RH_MIN": _resample_era5_variable(rh, rule, "min", weekly),
         "RH_MAX": _resample_era5_variable(rh, rule, "max", weekly),
@@ -214,6 +217,27 @@ def filter_to_reference_support(X, y, sidecar, reference_dir, split):
 
     return X_filtered, y_filtered, filtered_sidecar
 
+
+def complete_era5_grid_coordinates(era5_df, requested_columns):
+    """Retorna somente células com todas as variáveis completas no período.
+
+    O ERA5-Land mantém células marítimas na grade, mas temperatura e ponto de
+    orvalho podem estar ausentes nelas. Essas células não podem participar da
+    busca da vizinhança mais próxima para unidades notificadoras costeiras.
+    """
+    keys = ["LAT_ERA5", "LNG_ERA5"]
+    complete_rows = era5_df[requested_columns].notna().all(axis=1)
+    quality = complete_rows.groupby(
+        [era5_df[keys[0]], era5_df[keys[1]]], sort=False
+    ).all()
+    valid = quality[quality].index.to_frame(index=False)
+    valid.columns = keys
+    if valid.empty:
+        raise RuntimeError(
+            "Nenhuma célula ERA5 possui todas as variáveis solicitadas no período."
+        )
+    return valid.to_numpy(dtype=float)
+
 # Processamento total
 def build_dataset_era5(config_path, sinan_path, cnes_path, era5_path, output_path, id_unidade):
     """Modo antigo: por unidade + ERA5."""
@@ -226,6 +250,19 @@ def build_dataset_era5(config_path, sinan_path, cnes_path, era5_path, output_pat
     sinan_df = pd.read_parquet(sinan_path)
     sinan_df['DT_NOTIFIC'] = pd.to_datetime(sinan_df['DT_NOTIFIC'])
     sinan_df['ID_UNIDADE'] = sinan_df['ID_UNIDADE'].astype(str)
+
+    # Restringe o universo epidemiológico ao período declarado e a unidades
+    # que notificaram ao menos um caso confirmado nesse intervalo.
+    min_date = pd.Timestamp(config.min_date)
+    max_date = pd.Timestamp(config.max_date)
+    sinan_df = sinan_df[
+        (sinan_df['DT_NOTIFIC'] >= min_date)
+        & (sinan_df['DT_NOTIFIC'] <= max_date)
+    ].copy()
+    positive_units = (
+        sinan_df.groupby('ID_UNIDADE', sort=False)['CASES'].sum().loc[lambda x: x > 0].index
+    )
+    sinan_df = sinan_df[sinan_df['ID_UNIDADE'].isin(positive_units)].copy()
 
     if id_unidade != "FULL":
         unidade_df = sinan_df[sinan_df["ID_UNIDADE"] == id_unidade].copy()
@@ -250,10 +287,22 @@ def build_dataset_era5(config_path, sinan_path, cnes_path, era5_path, output_pat
 
     if requested_columns:
         era5_ds = xr.open_dataset(era5_path)
-        grid_coords = np.array([
-            (lat, lon) for lat in era5_ds.latitude.values for lon in era5_ds.longitude.values
-        ])
+        era5_df = load_or_build_era5_grid(
+            era5_path,
+            era5_ds,
+            sinan_df[dt_col].min(),
+            sinan_df[dt_col].max(),
+            weekly=config.weekly,
+        ).rename(columns={"DT_NOTIFIC": dt_col})
+        era5_df = era5_df[[dt_col, "LAT_ERA5", "LNG_ERA5"] + requested_columns]
+
+        # A busca espacial considera somente células terrestres que tenham
+        # todas as variáveis solicitadas completas em todo o recorte.
+        grid_coords = complete_era5_grid_coordinates(era5_df, requested_columns)
         era5_tree = cKDTree(grid_coords)
+        logging.info(
+            "🌍 Pareamento restrito a %d células ERA5 completas.", len(grid_coords)
+        )
 
         # O pareamento espacial depende apenas da unidade, não de cada registro.
         unit_coords = sinan_df[["ID_UNIDADE", "LAT", "LNG"]].drop_duplicates("ID_UNIDADE").copy()
@@ -267,14 +316,6 @@ def build_dataset_era5(config_path, sinan_path, cnes_path, era5_path, output_pat
             how="left",
         )
 
-        era5_df = load_or_build_era5_grid(
-            era5_path,
-            era5_ds,
-            sinan_df[dt_col].min(),
-            sinan_df[dt_col].max(),
-            weekly=config.weekly,
-        ).rename(columns={"DT_NOTIFIC": dt_col})
-        era5_df = era5_df[[dt_col, "LAT_ERA5", "LNG_ERA5"] + requested_columns]
         sinan_df = sinan_df.merge(
             era5_df,
             on=[dt_col, "LAT_ERA5", "LNG_ERA5"],

@@ -6,6 +6,7 @@ pois estes últimos são filtrados pelo suporte de datas e unidades do FULL.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -35,12 +36,16 @@ def run_build(config: str) -> None:
         "--config",
         str(config_path),
     ]
+    environment = os.environ.copy()
+    environment["PYTHONIOENCODING"] = "utf-8"
+    environment["PYTHONUTF8"] = "1"
 
     print(f"\n=== Construindo {config} ===", flush=True)
     with log_path.open("w", encoding="utf-8") as log_file:
         process = subprocess.Popen(
             command,
             cwd=PROJECT_ROOT,
+            env=environment,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -63,6 +68,11 @@ def run_build(config: str) -> None:
 
 
 def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
     LOG_DIRECTORY.mkdir(parents=True, exist_ok=True)
     for config in CONFIGS:
         run_build(config)

@@ -23,14 +23,15 @@ def train_and_evaluate(
     print(f"Prevendo...")
     y_pred_train = np.round(np.maximum(model.predict(X_train), 0)).astype(int)
     y_pred_val = np.round(np.maximum(model.predict(X_val), 0)).astype(int)
-    y_pred_test = np.round(np.maximum(model.predict(X_test), 0)).astype(int)
+    y_pred_test = None if X_test is None else np.round(np.maximum(model.predict(X_test), 0)).astype(int)
 
     print(f"Carregando métricas de treino...")
     metrics_dict = {
         "Treino": get_training_metrics(y_train, y_pred_train),
         "Validação": get_training_metrics(y_val, y_pred_val),
-        "Teste": get_training_metrics(y_test, y_pred_test)
     }
+    if y_pred_test is not None:
+        metrics_dict["Teste"] = get_training_metrics(y_test, y_pred_test)
 
     print(f"Salvando métricas de treino...")
     save_all_metrics(metrics_dict, outdir)
@@ -40,15 +41,15 @@ def train_and_evaluate(
         plot_learning_curve_external(clone(model), X_train, y_train, X_val, y_val, outdir, "Random Forest")
     
     print(f"Plotando distribuição de predições...")
-    plot_prediction_distribution(y_pred_test, name, outdir)    
+    if y_pred_test is not None:
+        plot_prediction_distribution(y_pred_test, name, outdir)
 
     print(f"Salvando importância de features...")
     if hasattr(model, "feature_importances_"):
         save_feature_importance(name, model, X_train, outdir, feature_dictionary)
 
-    save_predictions(
-        y_true=y_test, y_pred=y_pred_test, dates=None, outdir=outdir
-    )        
+    if y_pred_test is not None:
+        save_predictions(y_true=y_test, y_pred=y_pred_test, dates=None, outdir=outdir)
 
     return model, y_pred_test
 

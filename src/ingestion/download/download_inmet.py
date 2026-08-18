@@ -29,10 +29,33 @@ STATIONS_BY_CITY = {
     "RJ": [
         {"id": "A601", "name": "Seropédica"},
         {"id": "A602", "name": "Maramabaias"},
+        {"id": "A603", "name": "Duque de Caxias - Xerém"},
+        {"id": "A604", "name": "Cambuci"},
+        {"id": "A606", "name": "Arraial do Cabo"},
+        {"id": "A607", "name": "Campos dos Goytacazes"},
+        {"id": "A608", "name": "Macaé"},
+        {"id": "A609", "name": "Resende"},
+        {"id": "A610", "name": "Pico do Couto"},
+        {"id": "A611", "name": "Valença"},
+        {"id": "A618", "name": "Teresópolis - Parque Nacional"},
+        {"id": "A619", "name": "Paraty"},
+        {"id": "A620", "name": "Campos dos Goytacazes - São Tomé"},
         {"id": "A621", "name": "Vila Militar"},
+        {"id": "A624", "name": "Nova Friburgo - Salinas"},
+        {"id": "A625", "name": "Três Rios"},
+        {"id": "A626", "name": "Rio Claro"},
         {"id": "A627", "name": "Niterói"},
+        {"id": "A628", "name": "Angra dos Reis"},
+        {"id": "A629", "name": "Carmo"},
+        {"id": "A630", "name": "Santa Maria Madalena"},
         {"id": "A636", "name": "Jacarepaguá"},
+        {"id": "A637", "name": "Paty do Alferes - Avelar"},
         {"id": "A652", "name": "Forte de Copacabana"},
+        {"id": "A659", "name": "Silva Jardim"},
+        {"id": "A667", "name": "Saquarema - Sampaio Correia"},
+        # Estações de MG explicitamente incluídas por decisão metodológica.
+        {"id": "A518", "name": "Juiz de Fora"},
+        {"id": "A557", "name": "Coronel Pacheco"},
     ]
 }
 

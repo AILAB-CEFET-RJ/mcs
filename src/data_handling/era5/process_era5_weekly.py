@@ -46,6 +46,7 @@ def _merge_expver(arr):
     ERA5 files downloaded with 2 experiment versions have shape (..., 2).
     Merge by taking expver=0 where valid, filling gaps from expver=1.
     """
+    arr = np.ma.filled(arr, np.nan).astype(np.float32, copy=False)
     if arr.ndim == 0 or arr.shape[-1] != 2:
         return arr
     a0 = arr[..., 0].astype(np.float32)

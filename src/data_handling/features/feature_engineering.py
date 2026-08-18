@@ -6,6 +6,9 @@ import pandas as pd
 import numpy as np
 
 
+CASE_LAG_CONTRACT_VERSION = "target_relative_anchor_v2"
+
+
 def create_new_features(
     df: pd.DataFrame,
     subset: str,
@@ -63,7 +66,11 @@ def create_new_features(
 
     if enabled.get("cases_lags", False) and is_available("CASES"):
         for lag in range(1, lags + 1):
-            df[f"CASES_LAG_{lag}"] = lag_feature("CASES", lag)
+            # Lags are defined relative to the first forecast target.  For a
+            # row anchored at t whose target is t+1, LAG_1 is the latest
+            # observation available (CASES_t), LAG_2 is CASES_{t-1}, etc.
+            # This is the same contract used by the sequence-to-sequence arm.
+            df[f"CASES_LAG_{lag}"] = lag_feature("CASES", lag - 1)
 
     # -------------------------------------------------------------------------
     # 2) FEATURES METEOROLÓGICAS SIMPLES
@@ -185,9 +192,18 @@ def create_new_features(
     feature_names = feat_cols
     print(output_path)
     os.makedirs(os.path.dirname(output_path + "/"), exist_ok=True)
-    pd.DataFrame({"Index": range(len(feature_names)), "Feature": feature_names}).to_csv(
-        f"{output_path}/feature_dictionary.csv", index=False
-    )
+    dictionary_path = f"{output_path}/feature_dictionary.csv"
+    feature_dictionary = pd.DataFrame({
+        "Index": range(len(feature_names)), "Feature": feature_names
+    })
+    reuse_dictionary = False
+    if os.path.exists(dictionary_path):
+        existing_dictionary = pd.read_csv(dictionary_path)
+        reuse_dictionary = existing_dictionary.equals(feature_dictionary)
+    if not reuse_dictionary:
+        feature_dictionary.to_csv(dictionary_path, index=False)
+    else:
+        logging.info("♻️ Dicionário de features existente e idêntico; reutilizando arquivo.")
 
     logging.info(
         f"{subset} - samples: {len(y)} | zeros: {(y == 0).sum()} | non-zeros: {(y > 0).sum()}"

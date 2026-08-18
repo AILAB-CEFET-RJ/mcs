@@ -38,7 +38,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = PROJECT_ROOT / "arboseer" / "src"
 sys.path.insert(0, str(SRC_ROOT))
 
-from data.rj_dengue_clean_dataset import RJDengueCleanDataset  # noqa: E402
+from data.spatiotemporal_tensor_dataset import SpatiotemporalTensorDataset  # noqa: E402
+from data.causal_epidemiological_dataset import CausalEpidemiologicalTensorDataset  # noqa: E402
 from models.stconv_s2s import (  # noqa: E402
     STConvS2SGrid,
     STConvS2SOfficialRGrid,
@@ -58,6 +59,7 @@ EVAL_HORIZONS = [1, 7, 14, 21, 28]
 
 @dataclass
 class RunConfig:
+    training_mode: str
     model: str
     seed: int
     epochs: int
@@ -83,6 +85,18 @@ class RunConfig:
     grid_h: int
     grid_w: int
     output_dir: str
+    input_steps: int
+    output_steps: int
+    in_channels: int
+    mask_policy: str
+    early_stopping_patience: int
+    dataset_contract: str
+    epidemiology_dir: str
+    calibration_dir: str
+    lag_count: int
+    dynamic_features_path: str
+    dynamic_channels_path: str
+    dynamic_cell_indices_path: str
 
 
 def setup_logging(outdir: Path) -> None:
@@ -138,11 +152,36 @@ def to_model_tensors(batch: dict, device: torch.device) -> tuple[torch.Tensor, t
     return x, y
 
 
-def make_active_mask(train_dataset: RJDengueCleanDataset, device: torch.device) -> torch.Tensor:
+def make_active_mask(train_dataset, device: torch.device) -> torch.Tensor:
+    if isinstance(train_dataset, CausalEpidemiologicalTensorDataset):
+        raise ValueError(
+            "mask_policy=active é proibida no contrato causal; use observation para "
+            "não definir supervisão pela ocorrência de casos"
+        )
     active = (train_dataset._targets.sum(axis=0) > 0).astype(np.float32)  # noqa: SLF001
     mask = torch.from_numpy(active)[None, None, None].to(device=device)
     LOG.info("Mascara ativa: %d/%d celulas", int(active.sum()), active.size)
     return mask
+
+
+def make_observation_mask(train_dataset, device: torch.device) -> torch.Tensor:
+    """All cells containing an experimental CNES unit, regardless of territory mask."""
+    if getattr(train_dataset, "observation_mask", None) is not None:
+        valid = np.asarray(train_dataset.observation_mask, dtype=np.float32)
+    else:
+        if "CNES_MASK" not in train_dataset.channels:
+            raise ValueError("Canal CNES_MASK necessário para observation mask")
+        cnes = train_dataset._feats[:, train_dataset.channels.index("CNES_MASK")] > 0.5  # noqa: SLF001
+        valid = cnes.all(axis=0).astype(np.float32)
+    mask = torch.from_numpy(valid)[None, None, None].to(device=device)
+    LOG.info("Mascara de observacao CNES: %d/%d celulas", int(valid.sum()), valid.size)
+    return mask
+
+
+def masked_mean(values: torch.Tensor, spatial_mask: torch.Tensor) -> torch.Tensor:
+    mask = spatial_mask.expand_as(values).to(dtype=values.dtype)
+    selected = torch.where(mask.bool(), values, torch.zeros_like(values))
+    return selected.sum() / mask.sum().clamp_min(1.0)
 
 
 def compute_loss(
@@ -152,7 +191,10 @@ def compute_loss(
     occurrence_weight: float = 1.0,
     count_weight: float = 1.0,
     pos_weight_tensor: torch.Tensor | None = None,
+    observation_mask: torch.Tensor | None = None,
 ) -> torch.Tensor:
+    if observation_mask is None:
+        observation_mask = torch.ones((1, 1, 1, target.shape[-2], target.shape[-1]), device=target.device)
     if loss_name == "hurdle_poisson":
         if not isinstance(pred, dict):
             raise TypeError("hurdle_poisson espera pred dict com occ_logits e log_lambda")
@@ -161,8 +203,10 @@ def compute_loss(
             pred["occ_logits"],
             occ_target,
             pos_weight=pos_weight_tensor,
+            reduction="none",
         )
-        positive_mask = target > 0
+        bce = masked_mean(bce, observation_mask)
+        positive_mask = (target > 0) & observation_mask.expand_as(target).bool()
         if positive_mask.any():
             count_loss = F.poisson_nll_loss(
                 pred["log_lambda"][positive_mask],
@@ -174,17 +218,18 @@ def compute_loss(
             count_loss = pred["log_lambda"].sum() * 0.0
         return occurrence_weight * bce + count_weight * count_loss
     if loss_name == "poisson_nll_log":
-        return F.poisson_nll_loss(pred, target, log_input=True, full=False)
+        element = F.poisson_nll_loss(pred, target, log_input=True, full=False, reduction="none")
+        return masked_mean(element, observation_mask)
     if loss_name == "mse_log1p":
         target_log = torch.log1p(target)
-        return F.mse_loss(pred, target_log)
+        return masked_mean(F.mse_loss(pred, target_log, reduction="none"), observation_mask)
     if loss_name == "mae_log1p":
         target_log = torch.log1p(target)
-        return F.l1_loss(pred, target_log)
+        return masked_mean(F.l1_loss(pred, target_log, reduction="none"), observation_mask)
     if loss_name == "mse_raw":
-        return F.mse_loss(pred, target)
+        return masked_mean(F.mse_loss(pred, target, reduction="none"), observation_mask)
     if loss_name == "mae_raw":
-        return F.l1_loss(pred, target)
+        return masked_mean(F.l1_loss(pred, target, reduction="none"), observation_mask)
     raise ValueError(f"loss desconhecida: {loss_name}")
 
 
@@ -204,14 +249,18 @@ def pred_to_counts(pred, loss_name: str, occurrence_threshold: float = 0.5) -> t
 
 def metric_accumulator() -> dict:
     return {
+        "sum_signed_all": 0.0,
         "sum_abs_all": 0.0,
         "sum_sq_all": 0.0,
         "n_all": 0.0,
+        "sum_signed_active": 0.0,
         "sum_abs_active": 0.0,
         "sum_sq_active": 0.0,
         "n_active": 0.0,
         "horizon_abs": {h: 0.0 for h in EVAL_HORIZONS},
         "horizon_n": {h: 0.0 for h in EVAL_HORIZONS},
+        "horizon_abs_observed": {h: 0.0 for h in EVAL_HORIZONS},
+        "horizon_n_observed": {h: 0.0 for h in EVAL_HORIZONS},
     }
 
 
@@ -220,13 +269,15 @@ def update_metrics(acc: dict, pred_counts: torch.Tensor, target: torch.Tensor, a
     abs_diff = diff.abs()
     sq_diff = diff.square()
 
+    acc["sum_signed_all"] += float(diff.sum().detach().cpu())
     acc["sum_abs_all"] += float(abs_diff.sum().detach().cpu())
     acc["sum_sq_all"] += float(sq_diff.sum().detach().cpu())
     acc["n_all"] += float(abs_diff.numel())
 
-    active = active_mask.expand_as(abs_diff)
-    acc["sum_abs_active"] += float((abs_diff * active).sum().detach().cpu())
-    acc["sum_sq_active"] += float((sq_diff * active).sum().detach().cpu())
+    active = active_mask.expand_as(abs_diff).bool()
+    acc["sum_signed_active"] += float(torch.where(active, diff, 0.0).sum().detach().cpu())
+    acc["sum_abs_active"] += float(torch.where(active, abs_diff, 0.0).sum().detach().cpu())
+    acc["sum_sq_active"] += float(torch.where(active, sq_diff, 0.0).sum().detach().cpu())
     acc["n_active"] += float(active.sum().detach().cpu())
 
     for h in EVAL_HORIZONS:
@@ -234,17 +285,32 @@ def update_metrics(acc: dict, pred_counts: torch.Tensor, target: torch.Tensor, a
         h_abs = abs_diff[:, :, idx]
         acc["horizon_abs"][h] += float(h_abs.sum().detach().cpu())
         acc["horizon_n"][h] += float(h_abs.numel())
+        h_mask = active_mask.expand_as(abs_diff)[:, :, idx].bool()
+        acc["horizon_abs_observed"][h] += float(
+            torch.where(h_mask, h_abs, 0.0).sum().detach().cpu()
+        )
+        acc["horizon_n_observed"][h] += float(h_mask.sum().detach().cpu())
 
 
 def finalize_metrics(acc: dict, prefix: str) -> dict[str, float]:
     out = {
-        f"{prefix}_mae_all28_allcells": acc["sum_abs_all"] / max(acc["n_all"], 1.0),
-        f"{prefix}_rmse_all28_allcells": math.sqrt(acc["sum_sq_all"] / max(acc["n_all"], 1.0)),
-        f"{prefix}_mae_all28_activecells": acc["sum_abs_active"] / max(acc["n_active"], 1.0),
-        f"{prefix}_rmse_all28_activecells": math.sqrt(acc["sum_sq_active"] / max(acc["n_active"], 1.0)),
+        f"{prefix}_bias_all{EXPECTED_T_OUT}_allcells": acc["sum_signed_all"] / max(acc["n_all"], 1.0),
+        f"{prefix}_mae_all{EXPECTED_T_OUT}_allcells": acc["sum_abs_all"] / max(acc["n_all"], 1.0),
+        f"{prefix}_rmse_all{EXPECTED_T_OUT}_allcells": math.sqrt(acc["sum_sq_all"] / max(acc["n_all"], 1.0)),
+        f"{prefix}_bias_all{EXPECTED_T_OUT}_activecells": acc["sum_signed_active"] / max(acc["n_active"], 1.0),
+        f"{prefix}_mae_all{EXPECTED_T_OUT}_activecells": acc["sum_abs_active"] / max(acc["n_active"], 1.0),
+        f"{prefix}_rmse_all{EXPECTED_T_OUT}_activecells": math.sqrt(acc["sum_sq_active"] / max(acc["n_active"], 1.0)),
+        # Nomes explícitos usados pelo contrato atual; aliases activecells são
+        # preservados acima para leitura de artefatos legados.
+        f"{prefix}_bias_all{EXPECTED_T_OUT}_observedcells": acc["sum_signed_active"] / max(acc["n_active"], 1.0),
+        f"{prefix}_mae_all{EXPECTED_T_OUT}_observedcells": acc["sum_abs_active"] / max(acc["n_active"], 1.0),
+        f"{prefix}_rmse_all{EXPECTED_T_OUT}_observedcells": math.sqrt(acc["sum_sq_active"] / max(acc["n_active"], 1.0)),
     }
     for h in EVAL_HORIZONS:
         out[f"{prefix}_mae_h{h}_allcells"] = acc["horizon_abs"][h] / max(acc["horizon_n"][h], 1.0)
+        out[f"{prefix}_mae_h{h}_observedcells"] = (
+            acc["horizon_abs_observed"][h] / max(acc["horizon_n_observed"][h], 1.0)
+        )
     return out
 
 
@@ -286,15 +352,25 @@ def assert_prediction_shape(pred, target: torch.Tensor) -> None:
         raise AssertionError(f"Modelo retornou {tuple(pred.shape)}, esperado {tuple(target.shape)}")
 
 
-def compute_auto_pos_weight(train_dataset: RJDengueCleanDataset, requested: float, device: torch.device) -> torch.Tensor | None:
+def compute_auto_pos_weight(
+    train_dataset: SpatiotemporalTensorDataset,
+    requested: float,
+    device: torch.device,
+    observation_mask: torch.Tensor | None = None,
+) -> torch.Tensor | None:
     if requested < 0:
         return None
     if requested > 0:
         value = float(requested)
     else:
         y = train_dataset._targets  # noqa: SLF001
-        positives = float((y > 0).sum())
-        total = float(y.size)
+        if observation_mask is None:
+            valid = np.ones_like(y, dtype=bool)
+        else:
+            spatial = observation_mask.squeeze().detach().cpu().numpy().astype(bool)
+            valid = np.broadcast_to(spatial, y.shape)
+        positives = float(((y > 0) & valid).sum())
+        total = float(valid.sum())
         negatives = total - positives
         value = negatives / max(positives, 1.0)
     LOG.info("BCE pos_weight=%.4f", value)
@@ -313,6 +389,7 @@ def train_one_epoch(
     count_weight: float,
     occurrence_threshold: float,
     pos_weight_tensor: torch.Tensor | None,
+    observation_mask: torch.Tensor | None = None,
 ) -> dict[str, float]:
     model.train()
     acc_continuous = metric_accumulator()
@@ -323,7 +400,10 @@ def train_one_epoch(
         pred = model(x)
         assert_prediction_shape(pred, target)
 
-        loss = compute_loss(pred, target, loss_name, occurrence_weight, count_weight, pos_weight_tensor)
+        loss = compute_loss(
+            pred, target, loss_name, occurrence_weight, count_weight,
+            pos_weight_tensor, observation_mask,
+        )
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -355,6 +435,7 @@ def evaluate(
     count_weight: float = 1.0,
     occurrence_threshold: float = 0.5,
     pos_weight_tensor: torch.Tensor | None = None,
+    observation_mask: torch.Tensor | None = None,
 ) -> dict[str, float]:
     model.eval()
     acc_continuous = metric_accumulator()
@@ -364,7 +445,10 @@ def evaluate(
         x, target = to_model_tensors(batch, device)
         pred = model(x)
         assert_prediction_shape(pred, target)
-        loss = compute_loss(pred, target, loss_name, occurrence_weight, count_weight, pos_weight_tensor)
+        loss = compute_loss(
+            pred, target, loss_name, occurrence_weight, count_weight,
+            pos_weight_tensor, observation_mask,
+        )
         losses.append(float(loss.detach().cpu()))
         pred_counts = pred_to_counts(pred, loss_name, occurrence_threshold)
         update_metric_pair(acc_continuous, acc_rounded, pred_counts, target, active_mask)
@@ -384,9 +468,43 @@ def write_metrics_csv(path: Path, rows: list[dict[str, float]]) -> None:
         writer.writerows(rows)
 
 
-def build_loaders(args: argparse.Namespace) -> tuple[DataLoader, DataLoader, RJDengueCleanDataset]:
-    train_ds = RJDengueCleanDataset(split="train", target_mode="daily28", dataset_dir=args.dataset_dir)
-    val_ds = RJDengueCleanDataset(split="val", target_mode="daily28", dataset_dir=args.dataset_dir)
+def build_loaders(args: argparse.Namespace):
+    if args.dataset_contract == "causal-grid":
+        epidemiology = Path(args.epidemiology_dir)
+        calibration = Path(args.calibration_dir)
+        cases_path = epidemiology / "cases.npy"
+        dates_path = epidemiology / "dates.npy"
+        if not cases_path.exists():
+            cases_path = epidemiology / "cases_weekly.npy"
+        if not dates_path.exists():
+            dates_path = epidemiology / "week_dates.npy"
+        common = dict(
+            cases_path=cases_path,
+            dates_path=dates_path,
+            masks_path=epidemiology / "masks.npz",
+            input_steps=args.input_steps,
+            output_steps=args.output_steps,
+            lag_count=args.lag_count,
+            dynamic_features_path=args.dynamic_features_path or None,
+            dynamic_channels_path=args.dynamic_channels_path or None,
+            dynamic_cell_indices_path=args.dynamic_cell_indices_path or None,
+            epidemiological_scaler_path=calibration / f"scaler_epi_lag{args.lag_count}.npz",
+        )
+        train_ds = CausalEpidemiologicalTensorDataset(
+            anchor_indices=calibration / "train_anchor_indices.npy", **common
+        )
+        val_ds = (None if args.training_mode == "final-refit" else
+                  CausalEpidemiologicalTensorDataset(
+                      anchor_indices=calibration / "validation_anchor_indices.npy", **common))
+    else:
+        train_ds = SpatiotemporalTensorDataset(
+            dataset_dir=args.dataset_dir, split="train",
+            input_steps=args.input_steps, output_steps=args.output_steps,
+        )
+        val_ds = SpatiotemporalTensorDataset(
+            dataset_dir=args.dataset_dir, split="val",
+            input_steps=args.input_steps, output_steps=args.output_steps,
+        )
 
     if args.overfit_batches > 0:
         n = min(len(train_ds), args.overfit_batches * args.batch_size)
@@ -405,18 +523,16 @@ def build_loaders(args: argparse.Namespace) -> tuple[DataLoader, DataLoader, RJD
         num_workers=args.num_workers,
         pin_memory=torch.cuda.is_available(),
     )
-    val_loader = DataLoader(
-        val_data,
-        batch_size=args.batch_size,
-        shuffle=False,
-        num_workers=args.num_workers,
-        pin_memory=torch.cuda.is_available(),
-    )
+    val_loader = (None if val_data is None else DataLoader(
+        val_data, batch_size=args.batch_size, shuffle=False,
+        num_workers=args.num_workers, pin_memory=torch.cuda.is_available()))
     return train_loader, val_loader, train_ds
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train STConvS2SGrid on RJ_E1_T1_clean daily28")
+    parser = argparse.ArgumentParser(
+        description="Trainer STConvS2S configurável para RJ ou Natal"
+    )
     parser.add_argument(
         "--model",
         choices=["minimal", "official-r", "official-r-hurdle", "upstream-r", "upstream-r-hurdle"],
@@ -427,6 +543,8 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--seed", type=int, default=987)
+    parser.add_argument("--training-mode", choices=["selection", "final-refit"], default="selection")
+    parser.add_argument("--frozen-protocol", default="")
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -446,13 +564,44 @@ def parse_args() -> argparse.Namespace:
         default=str(PROJECT_ROOT / "arboseer" / "data" / "datasets" / "RJ_E1_T1_clean"),
         help="Diretorio do dataset clean, ex: arboseer/data/datasets/RJ_E2_T1_clean",
     )
+    parser.add_argument(
+        "--dataset-contract", choices=["legacy", "causal-grid"], default="legacy",
+        help="legacy lê arrays por split; causal-grid gera canais epidemiológicos sob demanda",
+    )
+    parser.add_argument(
+        "--epidemiology-dir",
+        default=str(PROJECT_ROOT / "arboseer" / "data" / "processed" / "epidemiology" / "RJ_STATE_2km_WEEKLY_2014_2022"),
+    )
+    parser.add_argument(
+        "--calibration-dir",
+        default=str(PROJECT_ROOT / "docs" / "calibracao_cap4" / "stconv_protocol"),
+    )
+    parser.add_argument("--lag-count", type=int, choices=[4, 6, 8], default=6)
+    parser.add_argument("--dynamic-features-path", default="")
+    parser.add_argument("--dynamic-channels-path", default="")
+    parser.add_argument(
+        "--dynamic-cell-indices-path", default="",
+        help="Mapa (N,2) para canais dinâmicos compactos (T,C,N)",
+    )
+    parser.add_argument(
+        "--input-steps",
+        type=int,
+        default=28,
+        help="Comprimento da janela de entrada na unidade temporal do dataset",
+    )
+    parser.add_argument(
+        "--output-steps",
+        type=int,
+        default=28,
+        help="Número de passos futuros previstos",
+    )
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--overfit-batches", type=int, default=0, help=">0 usa poucos batches para sanity/overfit")
     parser.add_argument("--max-train-batches", type=int, default=0, help="0 = sem limite")
     parser.add_argument("--max-val-batches", type=int, default=0, help="0 = sem limite")
     parser.add_argument(
         "--checkpoint-metric",
-        default="val_rounded_mae_all28_activecells",
+        default="",
         help="Metrica de validacao minimizada para salvar best.pt",
     )
     parser.add_argument("--occurrence-weight", type=float, default=1.0, help="Peso da BCE no modelo hurdle")
@@ -465,11 +614,34 @@ def parse_args() -> argparse.Namespace:
         help="BCE pos_weight: 0=auto neg/pos; >0 valor fixo; <0 desativa",
     )
     parser.add_argument("--output-dir", default="")
+    parser.add_argument(
+        "--mask-policy",
+        choices=["active", "observation"],
+        default="observation",
+        help="active=legado; observation=todas as células CNES na loss e métricas",
+    )
+    parser.add_argument(
+        "--early-stopping-patience",
+        type=int,
+        default=0,
+        help="0 desativa; valores positivos monitoram val_loss",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
+    global EXPECTED_T_IN, EXPECTED_T_OUT, EXPECTED_CHANNELS, EVAL_HORIZONS
     args = parse_args()
+    if args.training_mode == "final-refit":
+        if args.dataset_contract != "causal-grid" or args.overfit_batches:
+            raise RuntimeError("Reajuste final exige causal-grid e proíbe overfit-batches")
+        if not args.frozen_protocol:
+            raise RuntimeError("Reajuste final bloqueado: informe --frozen-protocol")
+        frozen = json.loads(Path(args.frozen_protocol).read_text(encoding="utf-8"))
+        if frozen.get("status") != "FROZEN":
+            raise RuntimeError("Reajuste final bloqueado: protocolo ainda não está FROZEN")
+        if args.early_stopping_patience != 0:
+            raise RuntimeError("Reajuste final não pode usar early stopping; use épocas congeladas")
     seed_everything(args.seed)
 
     if args.output_dir:
@@ -483,29 +655,61 @@ def main() -> int:
 
     LOG.info("Output dir: %s", outdir)
     LOG.info("Device solicitado: %s", args.device)
-    LOG.info("Dataset dir: %s", args.dataset_dir)
+    if args.dataset_contract == "causal-grid":
+        LOG.info("Contrato causal: epidemiologia=%s calibracao=%s", args.epidemiology_dir, args.calibration_dir)
+    else:
+        LOG.info("Dataset dir: %s", args.dataset_dir)
     device = torch.device(args.device)
 
     train_loader, val_loader, train_ds = build_loaders(args)
+    args.in_channels = int(train_ds.in_channels)
+    EXPECTED_T_IN = int(args.input_steps)
+    EXPECTED_T_OUT = int(args.output_steps)
+    EXPECTED_CHANNELS = int(args.in_channels)
+    canonical_horizons = (
+        list(range(1, EXPECTED_T_OUT + 1))
+        if EXPECTED_T_OUT <= 4
+        else [1, 7, 14, 21, 28]
+    )
+    EVAL_HORIZONS = [h for h in canonical_horizons if h <= EXPECTED_T_OUT]
+    if EXPECTED_T_OUT not in EVAL_HORIZONS:
+        EVAL_HORIZONS.append(EXPECTED_T_OUT)
+    if not args.checkpoint_metric:
+        args.checkpoint_metric = "val_mae_h1_observedcells"
     grid_h, grid_w = train_ds.grid_shape
     args.grid_h = int(grid_h)
     args.grid_w = int(grid_w)
     LOG.info("Grid dataset: %dx%d", args.grid_h, args.grid_w)
+    LOG.info(
+        "Contrato tensorial: entrada=(T=%d,C=%d), saída=(T=%d), horizontes=%s",
+        EXPECTED_T_IN,
+        EXPECTED_CHANNELS,
+        EXPECTED_T_OUT,
+        EVAL_HORIZONS,
+    )
 
     cfg = RunConfig(**{k: getattr(args, k) for k in RunConfig.__annotations__})
     with open(outdir / "config.json", "w", encoding="utf-8") as f:
         json.dump(asdict(cfg), f, indent=2)
 
-    active_mask = make_active_mask(train_ds, device)
-    pos_weight_tensor = compute_auto_pos_weight(train_ds, args.pos_weight, device) if args.loss == "hurdle_poisson" else None
+    if args.mask_policy == "observation":
+        active_mask = make_observation_mask(train_ds, device)
+        observation_mask = active_mask
+    else:
+        active_mask = make_active_mask(train_ds, device)
+        observation_mask = None
+    pos_weight_tensor = (
+        compute_auto_pos_weight(train_ds, args.pos_weight, device, observation_mask)
+        if args.loss == "hurdle_poisson" else None
+    )
 
     if args.model == "minimal":
         model = STConvS2SGrid(
-            in_channels=45,
+            in_channels=args.in_channels,
             hidden_channels=args.hidden_channels,
             out_channels=1,
-            t_in=28,
-            t_out=28,
+            t_in=args.input_steps,
+            t_out=args.output_steps,
             temporal_layers=args.temporal_layers,
             spatial_layers=args.spatial_layers,
             dropout=args.dropout,
@@ -519,11 +723,11 @@ def main() -> int:
                 args.spatial_layers,
             )
         model = STConvS2SOfficialRGrid(
-            in_channels=45,
+            in_channels=args.in_channels,
             hidden_channels=args.hidden_channels,
             out_channels=1,
-            t_in=28,
-            t_out=28,
+            t_in=args.input_steps,
+            t_out=args.output_steps,
             num_layers=args.temporal_layers,
             kernel_size=3,
             dropout=args.dropout,
@@ -541,10 +745,10 @@ def main() -> int:
                 args.spatial_layers,
             )
         model = STConvS2SOfficialRHurdleGrid(
-            in_channels=45,
+            in_channels=args.in_channels,
             hidden_channels=args.hidden_channels,
-            t_in=28,
-            t_out=28,
+            t_in=args.input_steps,
+            t_out=args.output_steps,
             num_layers=args.temporal_layers,
             kernel_size=3,
             dropout=args.dropout,
@@ -560,11 +764,11 @@ def main() -> int:
                 args.spatial_layers,
             )
         model = STConvS2SUpstreamRGrid(
-            in_channels=45,
+            in_channels=args.in_channels,
             hidden_channels=args.hidden_channels,
             out_channels=1,
-            t_in=28,
-            t_out=28,
+            t_in=args.input_steps,
+            t_out=args.output_steps,
             num_layers=args.temporal_layers,
             kernel_size=3,
             dropout=args.dropout,
@@ -583,10 +787,10 @@ def main() -> int:
                 args.spatial_layers,
             )
         model = STConvS2SUpstreamRHurdleGrid(
-            in_channels=45,
+            in_channels=args.in_channels,
             hidden_channels=args.hidden_channels,
-            t_in=28,
-            t_out=28,
+            t_in=args.input_steps,
+            t_out=args.output_steps,
             num_layers=args.temporal_layers,
             kernel_size=3,
             dropout=args.dropout,
@@ -621,6 +825,7 @@ def main() -> int:
     best_loss = float("inf")
     best_metric_epoch = -1
     best_loss_epoch = -1
+    epochs_without_loss_improvement = 0
 
     for epoch in range(1, args.epochs + 1):
         train_metrics = train_one_epoch(
@@ -635,8 +840,9 @@ def main() -> int:
             args.count_weight,
             args.occurrence_threshold,
             pos_weight_tensor,
+            observation_mask,
         )
-        val_metrics = evaluate(
+        val_metrics = {} if val_loader is None else evaluate(
             model,
             val_loader,
             device,
@@ -648,22 +854,32 @@ def main() -> int:
             count_weight=args.count_weight,
             occurrence_threshold=args.occurrence_threshold,
             pos_weight_tensor=pos_weight_tensor,
+            observation_mask=observation_mask,
         )
         row = {"epoch": epoch, **train_metrics, **val_metrics}
         metrics_rows.append(row)
         write_metrics_csv(outdir / "metrics.csv", metrics_rows)
 
-        LOG.info(
-            "epoch=%03d train_loss=%.6f val_loss=%.6f val_mae_active=%.4f "
-            "val_rounded_mae_active=%.4f val_mae_h28=%.4f",
+        if val_loader is not None:
+            LOG.info(
+            "epoch=%03d train_loss=%.6f val_loss=%.6f val_mae_observed=%.4f "
+            "val_bias_observed=%.4f val_rounded_mae_observed=%.4f "
+            "val_rounded_bias_observed=%.4f val_mae_h1_observed=%.4f",
             epoch,
             row["train_loss"],
             row["val_loss"],
-            row["val_mae_all28_activecells"],
-            row["val_rounded_mae_all28_activecells"],
-            row["val_mae_h28_allcells"],
+            row[f"val_mae_all{EXPECTED_T_OUT}_observedcells"],
+            row[f"val_bias_all{EXPECTED_T_OUT}_observedcells"],
+            row[f"val_rounded_mae_all{EXPECTED_T_OUT}_observedcells"],
+            row[f"val_rounded_bias_all{EXPECTED_T_OUT}_observedcells"],
+            row["val_mae_h1_observedcells"],
         )
 
+        if val_loader is None:
+            checkpoint = {"model_state_dict": model.state_dict(), "config": asdict(cfg),
+                          "epoch": epoch, "training_mode": "final-refit"}
+            torch.save(checkpoint, outdir / "last.pt")
+            continue
         if args.checkpoint_metric not in row:
             raise KeyError(f"checkpoint_metric ausente em metrics: {args.checkpoint_metric}")
 
@@ -679,24 +895,43 @@ def main() -> int:
         if row["val_loss"] < best_loss:
             best_loss = row["val_loss"]
             best_loss_epoch = epoch
+            epochs_without_loss_improvement = 0
             torch.save(checkpoint, outdir / "best_loss.pt")
+        else:
+            epochs_without_loss_improvement += 1
         if row[args.checkpoint_metric] < best_metric:
             best_metric = row[args.checkpoint_metric]
             best_metric_epoch = epoch
             torch.save(checkpoint, outdir / "best.pt")
 
-    LOG.info(
-        "Concluido. best_metric=%s %.6f epoch=%d; best_val_loss=%.6f epoch=%d",
-        args.checkpoint_metric,
-        best_metric,
-        best_metric_epoch,
-        best_loss,
-        best_loss_epoch,
-    )
+        if (
+            args.early_stopping_patience > 0
+            and epochs_without_loss_improvement >= args.early_stopping_patience
+        ):
+            LOG.info(
+                "Early stopping na epoca %d: val_loss sem melhora por %d epocas",
+                epoch,
+                epochs_without_loss_improvement,
+            )
+            break
+
+    if val_loader is None:
+        torch.save(checkpoint, outdir / "final.pt")
+        LOG.info("Reajuste final concluído em %d épocas congeladas; sem validação/early stopping", args.epochs)
+    else:
+        LOG.info(
+            "Concluido. best_metric=%s %.6f epoch=%d; best_val_loss=%.6f epoch=%d",
+            args.checkpoint_metric, best_metric, best_metric_epoch, best_loss, best_loss_epoch)
     LOG.info("Artefatos: %s", outdir)
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except SystemExit:
+        raise
+    except Exception:
+        LOG.exception("Falha não tratada durante o treino")
+        raise
 

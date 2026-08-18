@@ -3,7 +3,7 @@
 import os
 import yaml
 import joblib
-from data_handling.utils.data_utils import load_data
+from data_handling.utils.data_utils import load_selection_data
 from models.models import get_rf, get_xgb_poisson, get_xgb_clf
 from train_xgb_poisson import train_and_evaluate as train_xgb_poisson
 from train_rf import train_and_evaluate as train_rf
@@ -16,6 +16,7 @@ def run_training(
     output_tag=None,
     selected_models=None,
     skip_completed=False,
+    evaluation_policy="selection",
 ):
     """
     Runs robust training using base YAML, but lets caller override:
@@ -38,8 +39,13 @@ def run_training(
     # if caller didn’t pass seeds, fall back to YAML single seed
     seeds = seeds if seeds is not None else [base_seed]
 
-    print(f"📥 Carregando dados de: {dataset_path}")
-    X_train, y_train, X_val, y_val, X_test, y_test = load_data(dataset_path)
+    print(f"Carregando dados de: {dataset_path}")
+    if evaluation_policy == "selection":
+        X_train, y_train, X_val, y_val = load_selection_data(dataset_path)
+        X_test = y_test = None
+        print("Politica selection: artefato de confirmacao nao foi aberto")
+    else:
+        raise ValueError("Este trainer é selection-only; use um avaliador bloqueado para confirmação/final")
 
     hp = hyperparams_by_model or {}
     selected_models = set(selected_models) if selected_models is not None else None
@@ -50,7 +56,7 @@ def run_training(
         )
 
     def output_complete(model_dir):
-        required = ("model.pkl", "metrics.csv", "predictions.csv")
+        required = ("model.pkl", "metrics.csv") if evaluation_policy == "selection" else ("model.pkl", "metrics.csv", "predictions.csv")
         return all(
             os.path.isfile(os.path.join(model_dir, filename))
             and os.path.getsize(os.path.join(model_dir, filename)) > 0
@@ -58,15 +64,15 @@ def run_training(
         )
 
     for seed in seeds:
-        print(f"\n🎲 Rodando seed={seed}")
+        print(f"\nRodando seed={seed}")
 
         if should_train("random_forest"):
-            print("🌲 Treinando Random Forest...")
+            print("Treinando Random Forest...")
             rf_hp = hp.get("random_forest", {})
             rf_model = get_rf(seed, hyperparams=rf_hp)
             rf_dir = f"{outdir}_{seed}_rf"
             if skip_completed and output_complete(rf_dir):
-                print(f"⏭️ Random Forest já concluído em {rf_dir}")
+                print(f"Random Forest ja concluido em {rf_dir}")
                 continue
             os.makedirs(rf_dir, exist_ok=True)
 
@@ -79,12 +85,12 @@ def run_training(
             joblib.dump(model_rf, os.path.join(rf_dir, "model.pkl"))
 
         if should_train("xgb_poisson"):
-            print("📈 Treinando XGBoost Poisson...")
+            print("Treinando XGBoost Poisson...")
             xgb_hp = hp.get("xgb_poisson", {})
             xgb_model = get_xgb_poisson(seed, hyperparams=xgb_hp)
             xgb_dir = f"{outdir}_{seed}_xgb_poisson"
             if skip_completed and output_complete(xgb_dir):
-                print(f"⏭️ XGBoost Poisson já concluído em {xgb_dir}")
+                print(f"XGBoost Poisson ja concluido em {xgb_dir}")
                 continue
             os.makedirs(xgb_dir, exist_ok=True)
 
@@ -96,7 +102,7 @@ def run_training(
             joblib.dump(model_xgb, os.path.join(xgb_dir, "model.pkl"))
 
         if should_train("xgb_zip"):
-            print("🎯 Treinando XGBoost ZIP...")
+            print("Treinando Bernoulli-Poisson em dois estagios...")
             zip_hp = hp.get("xgb_zip", {})
             clf_hp = zip_hp.get("clf", {})
             reg_hp = zip_hp.get("reg", {})
@@ -106,7 +112,7 @@ def run_training(
 
             xgb_zip_dir = f"{outdir}_{seed}_xgb_zip"
             if skip_completed and output_complete(xgb_zip_dir):
-                print(f"⏭️ XGBoost ZIP já concluído em {xgb_zip_dir}")
+                print(f"Bernoulli-Poisson ja concluido em {xgb_zip_dir}")
                 continue
             os.makedirs(xgb_zip_dir, exist_ok=True)
 
@@ -128,5 +134,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
     parser.add_argument("--output-tag", default=None)
+    parser.add_argument("--evaluation-policy", choices=["selection"], default="selection")
     args = parser.parse_args()
-    main(args.config, output_tag=args.output_tag)
+    run_training(args.config, output_tag=args.output_tag, evaluation_policy=args.evaluation_policy)

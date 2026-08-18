@@ -34,6 +34,9 @@ SRC_ROOT = PROJECT_ROOT / "arboseer" / "src"
 sys.path.insert(0, str(SRC_ROOT))
 
 from data.rj_dengue_clean_dataset import RJDengueCleanDataset  # noqa: E402
+from data.spatiotemporal_tensor_dataset import SpatiotemporalTensorDataset  # noqa: E402
+from data.causal_epidemiological_dataset import CausalEpidemiologicalTensorDataset  # noqa: E402
+import train_stconv_s2s_e1 as trainer  # noqa: E402
 from models.stconv_s2s import (  # noqa: E402
     STConvS2SGrid,
     STConvS2SOfficialRGrid,
@@ -48,6 +51,7 @@ from train_stconv_s2s_e1 import (  # noqa: E402
     compute_auto_pos_weight,
     finalize_metric_pair,
     make_active_mask,
+    make_observation_mask,
     metric_accumulator,
     pred_to_counts,
     to_model_tensors,
@@ -73,24 +77,27 @@ def build_model(config: dict) -> torch.nn.Module:
     model_name = config.get("model", "official-r")
     grid_h = int(config.get("grid_h", 11))
     grid_w = int(config.get("grid_w", 21))
+    in_channels = int(config.get("in_channels", 45))
+    t_in = int(config.get("input_steps", 28))
+    t_out = int(config.get("output_steps", 28))
     if model_name == "minimal":
         return STConvS2SGrid(
-            in_channels=45,
+            in_channels=in_channels,
             hidden_channels=int(config.get("hidden_channels", 16)),
             out_channels=1,
-            t_in=28,
-            t_out=28,
+            t_in=t_in,
+            t_out=t_out,
             temporal_layers=int(config.get("temporal_layers", 2)),
             spatial_layers=int(config.get("spatial_layers", 2)),
             dropout=float(config.get("dropout", 0.1)),
         )
     if model_name == "official-r":
         return STConvS2SOfficialRGrid(
-            in_channels=45,
+            in_channels=in_channels,
             hidden_channels=int(config.get("hidden_channels", 16)),
             out_channels=1,
-            t_in=28,
-            t_out=28,
+            t_in=t_in,
+            t_out=t_out,
             num_layers=int(config.get("temporal_layers", 2)),
             kernel_size=3,
             dropout=float(config.get("dropout", 0.1)),
@@ -99,10 +106,10 @@ def build_model(config: dict) -> torch.nn.Module:
         )
     if model_name == "official-r-hurdle":
         return STConvS2SOfficialRHurdleGrid(
-            in_channels=45,
+            in_channels=in_channels,
             hidden_channels=int(config.get("hidden_channels", 16)),
-            t_in=28,
-            t_out=28,
+            t_in=t_in,
+            t_out=t_out,
             num_layers=int(config.get("temporal_layers", 2)),
             kernel_size=3,
             dropout=float(config.get("dropout", 0.1)),
@@ -111,11 +118,11 @@ def build_model(config: dict) -> torch.nn.Module:
         )
     if model_name == "upstream-r":
         return STConvS2SUpstreamRGrid(
-            in_channels=45,
+            in_channels=in_channels,
             hidden_channels=int(config.get("hidden_channels", 16)),
             out_channels=1,
-            t_in=28,
-            t_out=28,
+            t_in=t_in,
+            t_out=t_out,
             num_layers=int(config.get("temporal_layers", 2)),
             kernel_size=3,
             dropout=float(config.get("dropout", 0.1)),
@@ -125,10 +132,10 @@ def build_model(config: dict) -> torch.nn.Module:
         )
     if model_name == "upstream-r-hurdle":
         return STConvS2SUpstreamRHurdleGrid(
-            in_channels=45,
+            in_channels=in_channels,
             hidden_channels=int(config.get("hidden_channels", 16)),
-            t_in=28,
-            t_out=28,
+            t_in=t_in,
+            t_out=t_out,
             num_layers=int(config.get("temporal_layers", 2)),
             kernel_size=3,
             dropout=float(config.get("dropout", 0.1)),
@@ -154,6 +161,15 @@ def evaluate_checkpoint(args: argparse.Namespace) -> dict[str, float]:
     checkpoint = torch.load(checkpoint_path, map_location=args.device, weights_only=False)
     config = checkpoint.get("config", {})
     loss_name = args.loss or config.get("loss", "mse_log1p")
+    trainer.EXPECTED_T_IN = int(config.get("input_steps", 28))
+    trainer.EXPECTED_T_OUT = int(config.get("output_steps", 28))
+    trainer.EXPECTED_CHANNELS = int(config.get("in_channels", 45))
+    trainer.EVAL_HORIZONS = [
+        h for h in (1, 7, 14, 21, 28)
+        if h <= trainer.EXPECTED_T_OUT
+    ]
+    if trainer.EXPECTED_T_OUT not in trainer.EVAL_HORIZONS:
+        trainer.EVAL_HORIZONS.append(trainer.EXPECTED_T_OUT)
 
     outdir = Path(args.output_dir) if args.output_dir else checkpoint_path.parent / f"eval_{args.split}"
     setup_logging(outdir)
@@ -165,8 +181,40 @@ def evaluate_checkpoint(args: argparse.Namespace) -> dict[str, float]:
 
     device = torch.device(args.device)
     dataset_dir = args.dataset_dir or config.get("dataset_dir", "")
-    train_ds = RJDengueCleanDataset(split="train", target_mode="daily28", dataset_dir=dataset_dir)
-    eval_ds = RJDengueCleanDataset(split=args.split, target_mode="daily28", dataset_dir=dataset_dir)
+    dataset_path = Path(dataset_dir)
+    if not dataset_path.is_absolute():
+        dataset_path = PROJECT_ROOT / dataset_path
+    if args.dataset_contract == "causal-grid":
+        if args.split == "confirmation" and not args.unlock_confirmation:
+            raise RuntimeError("Confirmação 2022 bloqueada; use --unlock-confirmation somente após congelar a seleção")
+        if args.split == "final2023":
+            if not args.frozen_protocol:
+                raise RuntimeError("Avaliação final bloqueada: informe --frozen-protocol")
+            frozen = json.loads(Path(args.frozen_protocol).read_text(encoding="utf-8"))
+            if frozen.get("status") != "FROZEN":
+                raise RuntimeError("Avaliação final bloqueada: protocolo ainda não está FROZEN")
+        common = dict(
+            cases_path=dataset_path / "cases.npy", dates_path=dataset_path / "dates.npy",
+            masks_path=dataset_path / "masks.npz", input_steps=int(config.get("input_steps", 28)),
+            output_steps=int(config.get("output_steps", 28)), lag_count=int(config.get("lag_count", 6)),
+            dynamic_features_path=args.dynamic_features_path or config.get("dynamic_features_path") or None,
+            dynamic_channels_path=args.dynamic_channels_path or config.get("dynamic_channels_path") or None,
+            dynamic_cell_indices_path=args.dynamic_cell_indices_path or config.get("dynamic_cell_indices_path") or None,
+            epidemiological_scaler_path=dataset_path / f"scaler_epi_lag{int(config.get('lag_count', 6))}.npz",
+        )
+        train_ds = CausalEpidemiologicalTensorDataset(anchor_indices=dataset_path / "train_anchor_indices.npy", **common)
+        eval_ds = CausalEpidemiologicalTensorDataset(anchor_indices=dataset_path / f"{args.split}_anchor_indices.npy", **common)
+    elif (dataset_path / "train_features.npy").is_file():
+        dataset_kwargs = {
+            "dataset_dir": dataset_path,
+            "input_steps": int(config.get("input_steps", 28)),
+            "output_steps": int(config.get("output_steps", 28)),
+        }
+        train_ds = SpatiotemporalTensorDataset(split="train", **dataset_kwargs)
+        eval_ds = SpatiotemporalTensorDataset(split=args.split, **dataset_kwargs)
+    else:
+        train_ds = RJDengueCleanDataset(split="train", target_mode="daily28", dataset_dir=dataset_path)
+        eval_ds = RJDengueCleanDataset(split=args.split, target_mode="daily28", dataset_dir=dataset_path)
     loader = DataLoader(
         eval_ds,
         batch_size=args.batch_size,
@@ -174,9 +222,14 @@ def evaluate_checkpoint(args: argparse.Namespace) -> dict[str, float]:
         num_workers=args.num_workers,
         pin_memory=torch.cuda.is_available(),
     )
-    active_mask = make_active_mask(train_ds, device)
+    observation_mask = (
+        make_observation_mask(train_ds, device)
+        if config.get("mask_policy") == "observation"
+        else None
+    )
+    active_mask = observation_mask if observation_mask is not None else make_active_mask(train_ds, device)
     pos_weight_tensor = (
-        compute_auto_pos_weight(train_ds, float(config.get("pos_weight", 0.0)), device)
+        compute_auto_pos_weight(train_ds, float(config.get("pos_weight", 0.0)), device, observation_mask)
         if loss_name == "hurdle_poisson"
         else None
     )
@@ -208,7 +261,10 @@ def evaluate_checkpoint(args: argparse.Namespace) -> dict[str, float]:
         pred = model(x)
         assert_prediction_shape(pred, target)
 
-        loss = compute_loss(pred, target, loss_name, occurrence_weight, count_weight, pos_weight_tensor)
+        loss = compute_loss(
+            pred, target, loss_name, occurrence_weight, count_weight,
+            pos_weight_tensor, observation_mask,
+        )
         losses.append(float(loss.detach().cpu()))
 
         pred_counts = pred_to_counts(pred, loss_name, occurrence_threshold)
@@ -238,13 +294,14 @@ def evaluate_checkpoint(args: argparse.Namespace) -> dict[str, float]:
         pred_rounded=rounded_arr,
         target=target_arr,
         anchor_dates=np.asarray(anchor_dates),
-        horizons=np.arange(1, 29, dtype=np.int16),
+        horizons=np.arange(1, int(config.get("output_steps", 28)) + 1, dtype=np.int16),
     )
 
     LOG.info("Amostras avaliadas: %d", metrics["n_samples"])
     LOG.info("%s_loss=%.6f", args.split, metrics[f"{args.split}_loss"])
-    LOG.info("%s_mae_active=%.6f", args.split, metrics[f"{args.split}_mae_all28_activecells"])
-    LOG.info("%s_rounded_mae_active=%.6f", args.split, metrics[f"{args.split}_rounded_mae_all28_activecells"])
+    t_out = int(config.get("output_steps", 28))
+    LOG.info("%s_mae_active=%.6f", args.split, metrics[f"{args.split}_mae_all{t_out}_activecells"])
+    LOG.info("%s_rounded_mae_active=%.6f", args.split, metrics[f"{args.split}_rounded_mae_all{t_out}_activecells"])
     LOG.info("Predicoes salvas: %s", outdir / f"predictions_{args.split}.npz")
     return metrics
 
@@ -252,7 +309,8 @@ def evaluate_checkpoint(args: argparse.Namespace) -> dict[str, float]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate STConvS2S E1 checkpoint")
     parser.add_argument("--checkpoint", required=True, help="Path para best.pt ou last.pt")
-    parser.add_argument("--split", choices=["val", "test"], default="test")
+    parser.add_argument("--split", choices=["val", "test", "validation", "confirmation", "final2023"], default="validation")
+    parser.add_argument("--dataset-contract", choices=["legacy", "causal-grid"], default="causal-grid")
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--dataset-dir", default="", help="Opcional: sobrescreve dataset_dir do checkpoint")
@@ -266,6 +324,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--max-batches", type=int, default=0, help="0 = sem limite")
     parser.add_argument("--output-dir", default="")
+    parser.add_argument("--dynamic-features-path", default="")
+    parser.add_argument("--dynamic-channels-path", default="")
+    parser.add_argument("--dynamic-cell-indices-path", default="")
+    parser.add_argument("--unlock-confirmation", action="store_true")
+    parser.add_argument("--frozen-protocol", default="")
     return parser.parse_args()
 
 
