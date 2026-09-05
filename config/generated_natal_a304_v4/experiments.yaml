@@ -1,0 +1,61 @@
+global:
+  seed: 987
+  use_fixed_seed: true
+  n_jobs_xgb: 8
+  early_stopping_rounds: 20
+  runs_dir: arboseer/models/cap4_matrix_v3/NATAL_A304_FUSED_V4/tabular_selection
+  run_label: h01
+  output_tag: NATAL_A304_SELECTION_2018
+  final_seeds:
+  - 109
+  - 220
+  - 222
+  - 241
+  - 149
+  - 107
+  - 75
+  - 248
+  - 254
+  - 140
+  trials_per_round:
+  - 10
+  - 10
+  - 10
+  directions:
+  - minimize
+  - minimize
+  - minimize
+  - minimize
+  - minimize
+  - minimize
+  - minimize
+  - minimize
+experiments:
+- dataset: arboseer/data/datasets/NATAL_FUSED_A304_V4/DAILY/MULTI_HORIZON/CASEONLY/h01
+  models:
+  - poisson
+  - zip
+  - rf
+  name: DAILY_CASEONLY_h01
+  train_config: arboseer/config/generated_natal_a304_v4/train_daily_caseonly_h01.yaml
+- dataset: arboseer/data/datasets/NATAL_FUSED_A304_V4/DAILY/MULTI_HORIZON/FULL_FUSED/h01
+  models:
+  - poisson
+  - zip
+  - rf
+  name: DAILY_FULL_FUSED_h01
+  train_config: arboseer/config/generated_natal_a304_v4/train_daily_full_fused_h01.yaml
+- dataset: arboseer/data/datasets/NATAL_FUSED_A304_V4/WEEKLY/MULTI_HORIZON/CASEONLY/h01
+  models:
+  - poisson
+  - zip
+  - rf
+  name: WEEKLY_CASEONLY_h01
+  train_config: arboseer/config/generated_natal_a304_v4/train_weekly_caseonly_h01.yaml
+- dataset: arboseer/data/datasets/NATAL_FUSED_A304_V4/WEEKLY/MULTI_HORIZON/FULL_FUSED/h01
+  models:
+  - poisson
+  - zip
+  - rf
+  name: WEEKLY_FULL_FUSED_h01
+  train_config: arboseer/config/generated_natal_a304_v4/train_weekly_full_fused_h01.yaml

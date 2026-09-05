@@ -1,0 +1,6 @@
+dataset: arboseer/data/datasets/NATAL_CAUSAL_V3/DAILY/MULTI_HORIZON/CASEONLY/h01
+feature_dict: arboseer/data/datasets/NATAL_CAUSAL_V3/DAILY/NATAL_DAILY_CASEONLY/feature_dictionary.csv
+output_dir: arboseer/models/cap4_matrix_v3/NATAL/daily/selection/tabular/CASEONLY_h01
+seed: 987
+generate_rf_learning_curve: false
+models: {random_forest: true, xgb_poisson: true, xgb_zip: true}

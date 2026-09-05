@@ -1,5 +1,5 @@
 {
-  "status": "interpolation_rules_calibrated_rain_priority_pending_unit_corrected_audit",
+  "status": "FROZEN",
   "era5_policy": "mandatory final fallback",
   "rules": {
     "WEBSIRENES:RAIN": {"method": "idw", "power": 1, "cutoff_km": 5, "min_stations": 3, "min_completeness": 0.75},
@@ -15,11 +15,9 @@
     "TEM_MAX": ["INMET", "ERA5"],
     "RH_AVG": ["ERA5"],
     "RH_MIN": ["ERA5"],
-    "RH_MAX": ["ERA5"]
+    "RH_MAX": ["ERA5"],
+    "RAIN": ["INMET", "ALERTARIO", "WEBSIRENES", "ERA5"]
   },
-  "pending_priority": {
-    "RAIN": ["WEBSIRENES", "ALERTARIO", "INMET", "ERA5"]
-  },
-  "pending_reason": "Repeat cross-source audit after statewide ERA5 precipitation is available in millimetres",
+  "rain_priority_basis": "author-confirmed experimental hierarchy",
   "test_2023_dengue_outcomes_used": false
 }

@@ -43,7 +43,7 @@ def sha256(path: Path) -> str:
 
 def canonical_table(weather_path: Path, epidemiology_dir: Path, sinan_path: Path,
                     start: pd.Timestamp, end: pd.Timestamp, frequency: str,
-                    purpose: str = "development") -> tuple[pd.DataFrame, dict]:
+                    purpose: str = "development", final_year: int = 2023) -> tuple[pd.DataFrame, dict]:
     start, end = pd.Timestamp(start).normalize(), pd.Timestamp(end).normalize()
     mapping = pd.read_parquet(epidemiology_dir / "cnes_cell_mapping.parquet").copy()
     mapping["CNES"] = normalize_id(mapping["CNES"])
@@ -64,10 +64,10 @@ def canonical_table(weather_path: Path, epidemiology_dir: Path, sinan_path: Path
         raise ValueError(f"Canais meteorológicos inesperados: {channels}")
     if units[channels.index("RAIN")].lower() != "mm":
         raise ValueError("Precipitação fusionada não está declarada em mm")
-    if purpose == "development" and dates.max().year > 2022:
-        raise RuntimeError("Firewall violado: tabela de desenvolvimento contém 2023")
-    if purpose == "final" and end.year != 2023:
-        raise RuntimeError("Artefato final deve terminar em 2023")
+    if purpose == "development" and dates.max().year >= final_year:
+        raise RuntimeError(f"Firewall violado: tabela de desenvolvimento contém {final_year}")
+    if purpose == "final" and end.year != final_year:
+        raise RuntimeError(f"Artefato final deve terminar em {final_year}")
     rows, cols = mapping.row.to_numpy(int), mapping.col.to_numpy(int)
     weather_rows, weather_cols = rows, cols
     if target_ids is not None:
@@ -133,7 +133,7 @@ def canonical_table(weather_path: Path, epidemiology_dir: Path, sinan_path: Path
              "sinan_loaded_interval": [raw_min_date.date().isoformat(), raw_max_date.date().isoformat()],
              "sinan_max_allowed_date": end.date().isoformat(),
              "sinan_rows_after_end": rows_after_end,
-             "year_2023_loaded": year_2023_loaded}
+             "year_2023_loaded": year_2023_loaded, "final_year": final_year}
     return frame.sort_values(["ID_UNIDADE", "DT_NOTIFIC"], kind="stable"), audit
 
 
@@ -141,7 +141,7 @@ def save_model_dataset(frame: pd.DataFrame, config_path: Path, output: Path,
                        scenario: str, reference: Path | None = None,
                        train_start: str | None = None, validation_start: str | None = None,
                        test_start: str | None = None, test_end: str | None = None,
-                       final_mode: bool = False) -> dict:
+                       final_mode: bool = False, final_label: str = "final2023") -> dict:
     config = FeatureConfig(config_path)
     if train_start is not None: config.min_date = train_start
     if validation_start is not None: config.train_split = validation_start
@@ -162,11 +162,11 @@ def save_model_dataset(frame: pd.DataFrame, config_path: Path, output: Path,
         int(config.features.get("lags", 0)) + 1,
     )
     if final_mode:
-        if validation_start is None or pd.Timestamp(validation_start).year != 2023:
-            raise RuntimeError("Modo final exige validation_start no início de 2023")
+        if validation_start is None:
+            raise RuntimeError("Modo final exige validation_start")
         partitions = {
             "train": (build_partition_with_history(model, config.min_date, train_date, context), config.min_date, train_date),
-            "final2023": (build_partition_with_history(model, train_date, None, context), train_date, None),
+            final_label: (build_partition_with_history(model, train_date, None, context), train_date, None),
         }
     else:
         partitions = {
@@ -201,7 +201,7 @@ def save_model_dataset(frame: pd.DataFrame, config_path: Path, output: Path,
                          scaled["test"], arrays["test"][1]), handle)
     split_dir = output / "splits"
     split_dir.mkdir(exist_ok=True)
-    public_names = ({"train": "train", "final2023": "final2023"} if final_mode else
+    public_names = ({"train": "train", final_label: final_label} if final_mode else
                     {"train": "train", "val": "validation", "test": "confirmation"})
     for split, public_name in public_names.items():
         with (split_dir / f"{public_name}.pickle").open("wb") as handle:
@@ -232,7 +232,7 @@ def save_model_dataset(frame: pd.DataFrame, config_path: Path, output: Path,
                 "confirmation_must_not_be_loaded_during_selection": True,
             } if not final_mode else {
                 "refit_reads": ["splits/train.pickle"],
-                "final_artifact": "splits/final2023.pickle",
+                "final_artifact": f"splits/{final_label}.pickle",
                 "final_requires_frozen_protocol": True,
             },
         }, ensure_ascii=False, indent=2),
@@ -262,6 +262,9 @@ def main() -> None:
     p.add_argument("--purpose", choices=["development", "final"], default="development")
     p.add_argument("--frozen-protocol", default="",
                    help="Manifesto status=FROZEN obrigatório para carregar 2023")
+    p.add_argument("--location-prefix", default="RJ")
+    p.add_argument("--final-year", type=int, default=2023)
+    p.add_argument("--final-label", default="final2023")
     args = p.parse_args()
     out = Path(args.out_dir); out.mkdir(parents=True, exist_ok=True)
     weather, epi, sinan = Path(args.weather), Path(args.epidemiology_dir), Path(args.sinan)
@@ -271,13 +274,14 @@ def main() -> None:
         frozen = json.loads(Path(args.frozen_protocol).read_text(encoding="utf-8"))
         if frozen.get("status") != "FROZEN":
             raise RuntimeError("Build final bloqueado: protocolo ainda não está FROZEN")
-    frame, audit = canonical_table(weather, epi, sinan, pd.Timestamp(args.start), pd.Timestamp(args.end), args.frequency, args.purpose)
+    frame, audit = canonical_table(weather, epi, sinan, pd.Timestamp(args.start), pd.Timestamp(args.end),
+                                   args.frequency, args.purpose, args.final_year)
     if args.expected_cases is not None and not np.isclose(audit["cases"], args.expected_cases, rtol=0, atol=1e-6):
         raise RuntimeError(
             f"Total canônico inválido: obtido={audit['cases']}, esperado={args.expected_cases}"
         )
     label = args.frequency.upper()
-    canonical = out / f"RJ_{label}_CANONICAL_DATA_CNES.parquet"
+    canonical = out / f"{args.location_prefix}_{label}_CANONICAL_DATA_CNES.parquet"
     frame.to_parquet(canonical, index=False)
     if args.scenarios == "CANONICAL":
         audit.update({"status": "READY", "canonical_table": str(canonical),
@@ -286,11 +290,11 @@ def main() -> None:
         (out / "manifest.json").write_text(json.dumps(audit, ensure_ascii=False, indent=2), encoding="utf-8")
         print(json.dumps(audit, ensure_ascii=False))
         return
-    full = out / f"RJ_{label}_FULL_FUSED"
-    caseonly = out / f"RJ_{label}_CASEONLY"
+    full = out / f"{args.location_prefix}_{label}_FULL_FUSED"
+    caseonly = out / f"{args.location_prefix}_{label}_CASEONLY"
     overrides = dict(train_start=args.train_start or None, validation_start=args.validation_start or None,
                      test_start=args.test_start or None, test_end=args.test_end or None,
-                     final_mode=args.purpose == "final")
+                     final_mode=args.purpose == "final", final_label=args.final_label)
     audit["samples"] = {"FULL_FUSED": save_model_dataset(frame, Path(args.full_config), full, "FULL_FUSED", **overrides)}
     if args.scenarios == "BOTH":
         audit["samples"]["CASEONLY"] = save_model_dataset(frame, Path(args.caseonly_config), caseonly, "CASEONLY", full, **overrides)
@@ -298,8 +302,8 @@ def main() -> None:
     if args.purpose == "final":
         audit["temporal_splits"] = {
             "refit": full_meta["target_date_ranges"]["train"],
-            "final2023": full_meta["target_date_ranges"]["final2023"],
-            "interval_policy": "refit through 2022; final2023 locked until explicit evaluation",
+            args.final_label: full_meta["target_date_ranges"][args.final_label],
+            "interval_policy": f"refit before {args.final_year}; {args.final_label} locked until explicit evaluation",
         }
     else:
         audit["temporal_splits"] = {

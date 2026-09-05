@@ -1,0 +1,57 @@
+{
+  "schema": "cap4_experiment_matrix_v3",
+  "seeds": [109, 220, 222, 241, 149, 107, 75, 248, 254, 140],
+  "lag_candidates": [4, 6, 8],
+  "scenarios": ["CASEONLY", "FULL_FUSED"],
+  "models": ["rf", "poisson", "hurdle", "stconv"],
+  "paired_target_invariants": {
+    "same_keys": true,
+    "same_dates": true,
+    "same_units_or_cells": true,
+    "same_y_true_elementwise": true,
+    "same_case_total": true,
+    "tolerance": 0.0
+  },
+  "locations": {
+    "RJ_STATE": {
+      "label": "Estado do Rio de Janeiro",
+      "period": ["2014-01-01", "2023-12-31"],
+      "train_end": "2020-12-31",
+      "validation_end": "2021-12-31",
+      "confirmation_end": "2022-12-31",
+      "test_end": "2023-12-31",
+      "expected_cases_development": 105976,
+      "expected_cases_final": 139431,
+      "sinan": "arboseer/data/processed/sinan/DENG33.parquet",
+      "cnes": "arboseer/data/processed/cnes/STBR.parquet",
+      "grid_mapping": "arboseer/data/processed/epidemiology/RJ_STATE_2km_WEEKLY_2014_2022/cnes_cell_mapping.parquet",
+      "reference_masks": "docs/calibracao_cap4/grade_1193/masks_2km.npz"
+    },
+    "NATAL": {
+      "label": "Natal",
+      "period": ["2015-01-01", "2019-12-31"],
+      "train_end": "2017-12-31",
+      "validation_end": "2018-12-31",
+      "confirmation_end": null,
+      "test_end": "2019-12-31",
+      "expected_cases_final": 16911,
+      "sinan": "arboseer/data/processed/sinan/DENG240810.parquet",
+      "cnes": "arboseer/data/processed/cnes/STRN2412.parquet",
+      "era5": "arboseer/data/raw/era5/NATAL_2014_2019.nc",
+      "grid_mapping": "arboseer/data/processed/epidemiology/NATAL_2km_2015_2019/cnes_cell_mapping.parquet",
+      "reference_masks": "arboseer/data/processed/epidemiology/NATAL_2km_2015_2019/masks.npz"
+    }
+  },
+  "resolutions": {
+    "daily": {"input_steps": 28, "horizons": [1, 7, 14, 21, 28]},
+    "weekly": {"input_steps": 4, "horizons": [1, 2, 3, 4]}
+  },
+  "completed_blocks": [
+    {
+      "location": "RJ_STATE",
+      "resolution": "weekly",
+      "artifact_root": "arboseer/models/cap4_experiment_v2",
+      "status": "COMPLETE"
+    }
+  ]
+}

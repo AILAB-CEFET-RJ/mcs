@@ -164,9 +164,13 @@ def evaluate_checkpoint(args: argparse.Namespace) -> dict[str, float]:
     trainer.EXPECTED_T_IN = int(config.get("input_steps", 28))
     trainer.EXPECTED_T_OUT = int(config.get("output_steps", 28))
     trainer.EXPECTED_CHANNELS = int(config.get("in_channels", 45))
+    canonical_horizons = (
+        list(range(1, trainer.EXPECTED_T_OUT + 1))
+        if trainer.EXPECTED_T_OUT <= 4
+        else [1, 7, 14, 21, 28]
+    )
     trainer.EVAL_HORIZONS = [
-        h for h in (1, 7, 14, 21, 28)
-        if h <= trainer.EXPECTED_T_OUT
+        h for h in canonical_horizons if h <= trainer.EXPECTED_T_OUT
     ]
     if trainer.EXPECTED_T_OUT not in trainer.EVAL_HORIZONS:
         trainer.EVAL_HORIZONS.append(trainer.EXPECTED_T_OUT)
@@ -187,7 +191,7 @@ def evaluate_checkpoint(args: argparse.Namespace) -> dict[str, float]:
     if args.dataset_contract == "causal-grid":
         if args.split == "confirmation" and not args.unlock_confirmation:
             raise RuntimeError("Confirmação 2022 bloqueada; use --unlock-confirmation somente após congelar a seleção")
-        if args.split == "final2023":
+        if args.split in ("final2019", "final2023"):
             if not args.frozen_protocol:
                 raise RuntimeError("Avaliação final bloqueada: informe --frozen-protocol")
             frozen = json.loads(Path(args.frozen_protocol).read_text(encoding="utf-8"))
@@ -203,7 +207,8 @@ def evaluate_checkpoint(args: argparse.Namespace) -> dict[str, float]:
             epidemiological_scaler_path=dataset_path / f"scaler_epi_lag{int(config.get('lag_count', 6))}.npz",
         )
         train_ds = CausalEpidemiologicalTensorDataset(anchor_indices=dataset_path / "train_anchor_indices.npy", **common)
-        eval_ds = CausalEpidemiologicalTensorDataset(anchor_indices=dataset_path / f"{args.split}_anchor_indices.npy", **common)
+        artifact_split = "confirmation" if args.split == "final2019" else args.split
+        eval_ds = CausalEpidemiologicalTensorDataset(anchor_indices=dataset_path / f"{artifact_split}_anchor_indices.npy", **common)
     elif (dataset_path / "train_features.npy").is_file():
         dataset_kwargs = {
             "dataset_dir": dataset_path,
@@ -309,7 +314,7 @@ def evaluate_checkpoint(args: argparse.Namespace) -> dict[str, float]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Evaluate STConvS2S E1 checkpoint")
     parser.add_argument("--checkpoint", required=True, help="Path para best.pt ou last.pt")
-    parser.add_argument("--split", choices=["val", "test", "validation", "confirmation", "final2023"], default="validation")
+    parser.add_argument("--split", choices=["val", "test", "validation", "confirmation", "final2019", "final2023"], default="validation")
     parser.add_argument("--dataset-contract", choices=["legacy", "causal-grid"], default="causal-grid")
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")

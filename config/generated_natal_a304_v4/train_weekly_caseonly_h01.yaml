@@ -1,0 +1,9 @@
+dataset: arboseer/data/datasets/NATAL_FUSED_A304_V4/WEEKLY/MULTI_HORIZON/CASEONLY/h01
+feature_dict: arboseer/data/datasets/NATAL_FUSED_A304_V4/WEEKLY/NATAL_WEEKLY_CASEONLY/feature_dictionary.csv
+output_dir: arboseer/models/cap4_matrix_v3/NATAL_A304_FUSED_V4/weekly/selection/tabular/CASEONLY_h01
+seed: 987
+generate_rf_learning_curve: false
+models:
+  random_forest: true
+  xgb_poisson: true
+  xgb_zip: true

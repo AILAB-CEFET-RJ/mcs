@@ -373,6 +373,10 @@ def main():
     )
     parser.add_argument("--start-year", type=int, required=True, help="Ano inicial")
     parser.add_argument("--end-year", type=int, required=True, help="Ano final (inclusive)")
+    parser.add_argument("--start-month", type=int, default=1, choices=range(1, 13),
+                        help="Mês inicial no primeiro ano (padrão: 1)")
+    parser.add_argument("--end-month", type=int, default=12, choices=range(1, 13),
+                        help="Mês final no último ano (padrão: 12)")
 
     parser.add_argument("--north", type=float, required=True, help="Latitude norte (N)")
     parser.add_argument("--south", type=float, required=True, help="Latitude sul (S)")
@@ -447,6 +451,8 @@ def main():
 
     if args.start_year > args.end_year:
         raise ValueError("start-year deve ser menor ou igual a end-year.")
+    if args.start_year == args.end_year and args.start_month > args.end_month:
+        raise ValueError("start-month deve ser menor ou igual a end-month no mesmo ano")
 
     dataset_cfg = DATASETS[args.dataset]
     cds_name = dataset_cfg["cds_name"]
@@ -484,6 +490,8 @@ def main():
         (y, m)
         for y in range(args.start_year, args.end_year + 1)
         for m in range(1, 13)
+        if (y > args.start_year or m >= args.start_month)
+        and (y < args.end_year or m <= args.end_month)
     ]
     total_months = len(months)
     completed_months = 0

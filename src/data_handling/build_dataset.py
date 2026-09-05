@@ -26,7 +26,7 @@ import json
 from pathlib import Path
 
 from features.feature_config_parser import FeatureConfig
-from features.feature_engineering import create_new_features
+from features.feature_engineering import CASE_LAG_CONTRACT_VERSION, create_new_features
 
 # === NOVO: providers/recipes (PoC INMET + clusters) ===
 try:
@@ -330,6 +330,12 @@ def build_dataset_era5(config_path, sinan_path, cnes_path, era5_path, output_pat
 
     if config.weekly:
         sinan_df.rename(columns={'DT_SEMANA': 'DT_NOTIFIC'}, inplace=True)
+        # ``Period.start_time`` may remain PeriodDtype when applied to an
+        # all-zero-complete epidemiological table without a weather merge.
+        # The causal partitioner requires an explicit timestamp axis.
+        sinan_df['DT_NOTIFIC'] = pd.to_datetime(
+            sinan_df['DT_NOTIFIC'].astype(str), errors='raise'
+        )
         
     train_date = pd.to_datetime(config.train_split)
     val_date = pd.to_datetime(config.val_split)
@@ -394,7 +400,16 @@ def build_dataset_era5(config_path, sinan_path, cnes_path, era5_path, output_pat
     with open(os.path.join(output_path, "dataset_ids.pickle"), "wb") as f:
         pickle.dump(ids_payload, f)
     with open(os.path.join(output_path, "dataset_meta.json"), "w", encoding="utf-8") as f:
-        json.dump({"sidecars": ["dataset_ids.pickle", "dataset_meta.json"]}, f, ensure_ascii=False, indent=2)      
+        json.dump({
+            "status": "READY",
+            "case_lag_contract": CASE_LAG_CONTRACT_VERSION,
+            "case_lag_definition": "CASES_LAG_k at anchor t equals CASES[t-k+1]",
+            "first_target_definition": "t+1",
+            "samples": {"train": int(len(y_train)), "val": int(len(y_val)), "test": int(len(y_test))},
+            "target_totals": {"train": float(np.sum(y_train)), "val": float(np.sum(y_val)),
+                              "test": float(np.sum(y_test))},
+            "sidecars": ["dataset_ids.pickle", "dataset_meta.json"],
+        }, f, ensure_ascii=False, indent=2)
 
     logging.info(f"✅ Dataset final salvo em: {output_path}")
 

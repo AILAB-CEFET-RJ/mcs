@@ -1,0 +1,31 @@
+dataset:
+  weekly: false
+paths:
+  sinan: data/processed/sinan/DENG240810.parquet
+  cnes: data/processed/cnes/STRN2412.parquet
+  era5: data/raw/era5/NATAL_2014_2019.nc
+  output: data/datasets/NATAL_CAUSAL_V3/DAILY/NATAL_DAILY_FULL_FUSED
+  unidade: FULL
+preproc:
+  SLIDING_WINDOW_SIZE: 7
+  MIN_DATE: 2015-01-01
+  MAX_DATE: 2019-12-31
+  TRAIN_SPLIT: 2018-01-01
+  VAL_SPLIT: 2019-01-01
+features:
+  enable:
+    cases_windows: true
+    cases_accumulators: true
+    cases_lags: true
+    ideal_temp: true
+    extreme_temp: true
+    significant_rain: true
+    extreme_rain: true
+    temp_range: true
+    week_of_year: true
+    windows: true
+    raw_features: {tem_avg: true, tem_min: true, tem_max: true, rain: true, rh_avg: true, rh_min: true, rh_max: true}
+  windows: [7, 14, 21, 28]
+  lags: 6
+  temp: {ideal_temp_range: [21, 27], extreme_temp_range: [14, 38]}
+  rain: {significant_range: [10, 150], extreme_threshold: 150}

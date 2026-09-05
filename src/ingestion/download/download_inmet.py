@@ -13,6 +13,7 @@ Saída: data/raw/inmet/{STATION_ID}.csv  (um arquivo por estação)
 
 import argparse
 import logging
+import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -26,6 +27,9 @@ from urllib3.util.retry import Retry
 INMET_API_BASE_URL = "https://apitempo.inmet.gov.br"
 
 STATIONS_BY_CITY = {
+    "NATAL": [
+        {"id": "A304", "name": "Natal"},
+    ],
     "RJ": [
         {"id": "A601", "name": "Seropédica"},
         {"id": "A602", "name": "Maramabaias"},
@@ -143,7 +147,7 @@ def download_station(
             f"{INMET_API_BASE_URL}/token/estacao"
             f"/{date_ini}/{date_fin}/{station_safe}/{token_safe}"
         )
-        logging.info("[%s] %d  GET %s", station_id, year, url)
+        logging.info("[%s] %d  GET INMET API (token redacted)", station_id, year)
 
         data = get_json(session, url)
         if not data:
@@ -170,9 +174,9 @@ def build_malha1(out_dir: Path) -> None:
     import glob as _glob
     import numpy as np
 
-    station_files = sorted(_glob.glob(str(out_dir / "A6*.csv")))
+    station_files = sorted(_glob.glob(str(out_dir / "A*.csv")))
     if not station_files:
-        raise FileNotFoundError(f"No A6*.csv files found in {out_dir}")
+        raise FileNotFoundError(f"No A*.csv files found in {out_dir}")
 
     daily_frames = []
     for fpath in station_files:
@@ -230,7 +234,7 @@ def main():
     )
     parser.add_argument("--malha1-only", action="store_true",
                         help="Apenas agregar CSVs existentes em malha1_inmet_diario.csv")
-    parser.add_argument("--token", default=None, help="Token da API INMET")
+    parser.add_argument("--token", default=os.environ.get("INMET_TOKEN"), help="Token da API INMET (ou INMET_TOKEN)")
     parser.add_argument("--city", default=None, help="Código da cidade (ex: RJ)")
     parser.add_argument("--start", type=int, default=None, help="Ano inicial")
     parser.add_argument("--end", type=int, default=None, help="Ano final (inclusive)")

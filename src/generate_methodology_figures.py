@@ -19,7 +19,7 @@ FIGURES = ROOT.parent / "dissertacao" / "figures"
 def load_epidemiological_support(
     sinan_file: str, start: str, end: str
 ) -> pd.DataFrame:
-    """Carrega os casos confirmados no recorte temporal do SINAN."""
+    """Carrega os casos retidos no recorte temporal do SINAN."""
     sinan = pd.read_parquet(
         ROOT / "data" / "processed" / "sinan" / sinan_file,
         columns=["ID_UNIDADE", "DT_NOTIFIC", "CASES"],
@@ -39,7 +39,7 @@ def plot_series(df: pd.DataFrame, title: str, output: str) -> None:
     ax.plot(series.index, series.values, color="#2f5597", linewidth=1.25)
     ax.set_title(title)
     ax.set_xlabel("Data do alvo")
-    ax.set_ylabel("Casos confirmados")
+    ax.set_ylabel("Casos retidos")
     ax.grid(True, linestyle="--", alpha=0.35)
     ax.text(
         0.99,
@@ -63,7 +63,7 @@ def plot_natal_2016(df: pd.DataFrame) -> None:
     ax.plot(weekly.index, weekly.values, color="#2f5597", marker="o", markersize=3)
     ax.set_title("Casos semanais nas unidades elegíveis de Natal — 2016")
     ax.set_xlabel("Semana")
-    ax.set_ylabel("Casos confirmados")
+    ax.set_ylabel("Casos retidos")
     ax.grid(True, linestyle="--", alpha=0.35)
     fig.tight_layout()
     fig.savefig(FIGURES / "casos_natal_2016.png", dpi=180, bbox_inches="tight")
@@ -74,6 +74,24 @@ def weekly_view(df: pd.DataFrame) -> pd.DataFrame:
     weekly = df.copy()
     weekly["DATE"] = weekly.DATE.dt.to_period("W").apply(lambda value: value.start_time)
     return weekly.groupby(["ID_UNIDADE", "DATE"], as_index=False)["CASES"].sum()
+
+
+def restrict_to_modeled_support(
+    df: pd.DataFrame, cnes_file: str, mapping_file: str | None = None
+) -> pd.DataFrame:
+    """Use exactly the CNES identifiers eligible for the modeled target."""
+    totals = df.groupby("ID_UNIDADE", sort=False)["CASES"].sum()
+    positive = set(totals[totals > 0].index)
+    if mapping_file is not None:
+        mapping = pd.read_parquet(ROOT / mapping_file)
+        eligible = set(mapping.CNES.astype(str).str.replace(r"\.0$", "", regex=True).str.zfill(7))
+    else:
+        cnes = pd.read_parquet(ROOT / "data" / "processed" / "cnes" / cnes_file)
+        cnes["CNES"] = cnes.CNES.astype(str).str.replace(r"\.0$", "", regex=True).str.zfill(7)
+        cnes["LAT"] = pd.to_numeric(cnes.LAT, errors="coerce")
+        cnes["LNG"] = pd.to_numeric(cnes.LNG, errors="coerce")
+        eligible = set(cnes.dropna(subset=["LAT", "LNG"]).CNES) & positive
+    return df[df.ID_UNIDADE.isin(eligible)].copy()
 
 
 def plot_zero_percentages(datasets: dict[str, pd.DataFrame]) -> None:
@@ -106,7 +124,7 @@ def plot_zero_percentages(datasets: dict[str, pd.DataFrame]) -> None:
 
 def plot_units(df: pd.DataFrame, cnes_file: str, title: str, output: str) -> None:
     # O mapa caracteriza unidades que efetivamente notificaram ao menos um caso
-    # confirmado no período, excluindo séries preenchidas apenas por zeros.
+    # retido no período, excluindo séries preenchidas apenas por zeros.
     totals = df.groupby("ID_UNIDADE", sort=False)["CASES"].sum()
     units = set(totals[totals > 0].index)
     cnes = pd.read_parquet(ROOT / "data" / "processed" / "cnes" / cnes_file)
@@ -148,18 +166,25 @@ def main() -> None:
             "DENG240810.parquet", "2015-01-01", "2019-12-31"
         ),
     }
+    modeled = {
+        "RJ": restrict_to_modeled_support(
+            datasets["RJ"], "STRJ2401.parquet",
+            "data/processed/epidemiology/RJ_STATE_2km_WEEKLY_2014_2022/cnes_cell_mapping.parquet",
+        ),
+        "RN": restrict_to_modeled_support(datasets["RN"], "STRN2412.parquet"),
+    }
     plot_series(
-        datasets["RJ"],
-        "Casos diários confirmados no estado do Rio de Janeiro",
+        modeled["RJ"],
+        "Casos diários retidos no estado do Rio de Janeiro",
         "casos_rj.png",
     )
     plot_series(
-        datasets["RN"],
-        "Casos diários confirmados em Natal",
+        modeled["RN"],
+        "Casos diários retidos em Natal",
         "casos_natal.png",
     )
-    plot_natal_2016(datasets["RN"])
-    plot_zero_percentages(datasets)
+    plot_natal_2016(modeled["RN"])
+    plot_zero_percentages(modeled)
     plot_units(
         datasets["RJ"],
         "STRJ2401.parquet",

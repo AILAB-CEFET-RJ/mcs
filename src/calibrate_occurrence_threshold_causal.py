@@ -33,11 +33,31 @@ def configured_path(value: str | None, fallback: Path) -> Path:
     return path if path.is_absolute() else ROOT / path
 
 
-def horizon_metrics(estimate: np.ndarray, target: np.ndarray, observation: np.ndarray) -> dict:
+def evaluation_horizons(frequency: str, output_steps: int) -> list[int]:
+    if frequency == "daily":
+        expected = [1, 7, 14, 21, 28]
+    elif frequency == "weekly":
+        expected = [1, 2, 3, 4]
+    else:
+        raise ValueError(f"Frequência tensorial não suportada: {frequency!r}")
+    if output_steps != expected[-1]:
+        raise ValueError(
+            f"Contrato {frequency} incompatível: output_steps={output_steps}, "
+            f"esperado={expected[-1]}"
+        )
+    return expected
+
+
+def horizon_metrics(
+    estimate: np.ndarray,
+    target: np.ndarray,
+    observation: np.ndarray,
+    horizons: list[int],
+) -> dict:
     metrics = {}
-    for index in range(4):
+    for horizon in horizons:
+        index = horizon - 1
         error = estimate[:, index][:, observation] - target[:, index][:, observation]
-        horizon = index + 1
         metrics[f"mae_h{horizon}"] = float(np.abs(error).mean())
         metrics[f"rmse_h{horizon}"] = float(np.sqrt(np.square(error).mean()))
         metrics[f"bias_h{horizon}"] = float(error.mean())
@@ -56,8 +76,6 @@ def main() -> None:
     cfg = checkpoint["config"]
     if cfg.get("dataset_contract") != "causal-grid" or cfg.get("loss") != "hurdle_poisson":
         raise ValueError("É necessário checkpoint Bernoulli–Poisson do contrato causal-grid")
-    if int(cfg.get("output_steps", 0)) != 4:
-        raise ValueError("Calibração V2 desta etapa exige saída semanal h1–h4")
     checkpoint_metric = checkpoint.get("checkpoint_metric") or cfg.get("checkpoint_metric")
     if checkpoint_metric != "val_mae_h1_observedcells":
         raise RuntimeError(
@@ -78,17 +96,20 @@ def main() -> None:
     if missing:
         raise FileNotFoundError("Contrato tensorial V2 incompleto:\n" + "\n".join(missing))
     manifest = json.loads((epi / "manifest.json").read_text(encoding="utf-8"))
-    if (manifest.get("purpose") != "development" or manifest.get("output_steps") != 4
-            or max(manifest.get("dates", [""])) >= "2023-01-01"):
-        raise RuntimeError("Firewall violado: calibrador aceita somente desenvolvimento até 2022")
+    output_steps = int(cfg.get("output_steps", 0))
+    if manifest.get("purpose") != "development" or int(manifest.get("output_steps", 0)) != output_steps:
+        raise RuntimeError("Manifesto de desenvolvimento incompatível com o checkpoint")
+    horizons = evaluation_horizons(str(manifest.get("frequency", "")).lower(), output_steps)
     dates = np.load(dates_path)
     anchors = np.load(calibration / "validation_anchor_indices.npy").astype(np.int64)
-    target_indices = anchors[:, None] + np.arange(1, 5, dtype=np.int64)[None, :]
+    target_indices = anchors[:, None] + np.arange(1, output_steps + 1, dtype=np.int64)[None, :]
     if target_indices.size == 0 or target_indices.max() >= len(dates):
         raise RuntimeError("Âncoras de validação vazias ou fora do eixo temporal")
     target_years = dates[target_indices].astype("datetime64[Y]").astype(int) + 1970
-    if set(np.unique(target_years)) != {2021}:
-        raise RuntimeError(f"Firewall violado: validation contém anos {sorted(np.unique(target_years).tolist())}")
+    validation_years = sorted(np.unique(target_years).tolist())
+    if len(validation_years) != 1:
+        raise RuntimeError(f"Firewall violado: validation contém anos {validation_years}")
+    validation_year = int(validation_years[0])
     ds = CausalEpidemiologicalTensorDataset(
         cases_path=cases_path, dates_path=dates_path,
         masks_path=epi / "masks.npz", anchor_indices=calibration / "validation_anchor_indices.npy",
@@ -112,7 +133,7 @@ def main() -> None:
             rates.append(torch.exp(pred["log_lambda"]).squeeze(1).cpu().numpy())
             targets.append(batch["Y"].numpy())
     probability, rate, target = map(lambda chunks: np.concatenate(chunks), (probs, rates, targets))
-    if probability.shape != target.shape or rate.shape != target.shape or probability.shape[1] != 4:
+    if probability.shape != target.shape or rate.shape != target.shape or probability.shape[1] != output_steps:
         raise RuntimeError(
             f"Contrato de saída inválido: probability={probability.shape}, rate={rate.shape}, target={target.shape}"
         )
@@ -126,15 +147,18 @@ def main() -> None:
     rows = []
     for threshold in thresholds:
         estimate = np.where(probability >= threshold, rate, 0.0)
-        rows.append({"threshold": threshold, **horizon_metrics(estimate, target, ds.observation_mask)})
+        rows.append({
+            "threshold": threshold,
+            **horizon_metrics(estimate, target, ds.observation_mask, horizons),
+        })
     best = min(rows, key=lambda row: (row["mae_h1"], row["rmse_h1"], row["threshold"]))
     out = Path(args.output_dir); out.mkdir(parents=True, exist_ok=True)
     with (out / "threshold_sweep.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0])); writer.writeheader(); writer.writerows(rows)
     checkpoint_path = Path(args.checkpoint).resolve()
-    payload = {**best, "split": "validation", "validation_year": 2021,
+    payload = {**best, "split": "validation", "validation_year": validation_year,
                "selection_metric": "mae_h1", "tie_break": ["rmse_h1", "lower_threshold"],
-               "secondary_metrics": [f"{metric}_h{h}" for h in range(1, 5)
+               "secondary_metrics": [f"{metric}_h{h}" for h in horizons
                                      for metric in ("mae", "rmse", "bias") if not (metric == "mae" and h == 1)],
                "checkpoint_metric": checkpoint_metric, "checkpoint": str(checkpoint_path),
                "checkpoint_metric_value": checkpoint.get("checkpoint_metric_value"),
@@ -144,7 +168,8 @@ def main() -> None:
                "threshold_candidates": thresholds,
                "tensor_manifest": str((epi / "manifest.json").resolve()),
                "dynamic_cell_indices_path": str(dynamic_indices.resolve()),
-               "confirmation_2022_loaded": False, "final_2023_loaded": False}
+               "evaluation_horizons": horizons,
+               "confirmation_loaded": False, "final_test_loaded": False}
     (out / "best_threshold.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     print(json.dumps(payload, ensure_ascii=False))
 
