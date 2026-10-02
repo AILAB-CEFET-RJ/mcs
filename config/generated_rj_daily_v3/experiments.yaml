@@ -1,0 +1,47 @@
+global:
+  seed: 987
+  use_fixed_seed: true
+  n_jobs_xgb: 8
+  early_stopping_rounds: 20
+  runs_dir: arboseer/models/cap4_matrix_v3/RJ_STATE_DAILY_V3/tabular_selection
+  run_label: h01
+  output_tag: RJ_DAILY_SELECTION_2021
+  final_seeds:
+  - 109
+  - 220
+  - 222
+  - 241
+  - 149
+  - 107
+  - 75
+  - 248
+  - 254
+  - 140
+  trials_per_round:
+  - 10
+  - 10
+  - 10
+  directions:
+  - minimize
+  - minimize
+  - minimize
+  - minimize
+  - minimize
+  - minimize
+  - minimize
+  - minimize
+experiments:
+- dataset: arboseer/data/datasets/RJ_DAILY_MATRIX_V3/DAILY/MULTI_HORIZON/CASEONLY/h01
+  models:
+  - poisson
+  - zip
+  - rf
+  name: DAILY_CASEONLY_h01
+  train_config: arboseer/config/generated_rj_daily_v3/train_daily_caseonly_h01.yaml
+- dataset: arboseer/data/datasets/RJ_DAILY_MATRIX_V3/DAILY/MULTI_HORIZON/FULL_FUSED/h01
+  models:
+  - poisson
+  - zip
+  - rf
+  name: DAILY_FULL_FUSED_h01
+  train_config: arboseer/config/generated_rj_daily_v3/train_daily_full_fused_h01.yaml
